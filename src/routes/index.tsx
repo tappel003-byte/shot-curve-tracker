@@ -361,7 +361,7 @@ function Chart({ shots, now }: { shots: Shot[]; now: number }) {
 
   const model = useMemo(() => {
     const to = now + DRIFT_HOURS * 3_600_000;
-    const earliest = shots.length ? shots[0].at : now;
+    const earliest = shots[0] ? shots[0].at : now;
     const from = Math.min(earliest, now - 3 * 86_400_000);
     const step = Math.max((to - from) / 240, 3_600_000);
     const pts = buildCurve(shots, from, to, step);
