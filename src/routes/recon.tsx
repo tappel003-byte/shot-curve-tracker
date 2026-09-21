@@ -32,10 +32,6 @@ type ReconState = {
 
 const DEFAULTS: ReconState = { vialMg: "36", bacMl: "1.5", wantedMg: "6" };
 
-const PRESETS: { label: string; state: ReconState }[] = [
-  { label: "36 mg + 1.5 mL", state: { vialMg: "36", bacMl: "1.5", wantedMg: "6" } },
-  { label: "40 mg + 2.0 mL", state: { vialMg: "40", bacMl: "2.0", wantedMg: "6" } },
-];
 
 function loadRecon(): ReconState {
   try {
@@ -86,28 +82,6 @@ function Recon() {
         <h1 className="text-2xl font-bold tracking-tight text-foreground">Recon</h1>
         <p className="mt-1 text-xs text-muted-foreground">U-100 syringe: 100 units = 1 mL.</p>
       </header>
-
-      {/* Presets */}
-      <div className="mb-4 grid grid-cols-2 gap-2">
-        {PRESETS.map((p) => {
-          const active =
-            state.vialMg === p.state.vialMg &&
-            state.bacMl === p.state.bacMl;
-          return (
-            <button
-              key={p.label}
-              onClick={() => update({ vialMg: p.state.vialMg, bacMl: p.state.bacMl })}
-              className={`rounded-lg border px-3 py-2.5 text-sm font-semibold transition-colors ${
-                active
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : "border-border bg-card text-foreground"
-              }`}
-            >
-              {p.label}
-            </button>
-          );
-        })}
-      </div>
 
       <section className="rounded-xl border border-border bg-card p-4">
         <div className="grid grid-cols-2 gap-3">
