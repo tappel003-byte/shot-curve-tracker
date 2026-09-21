@@ -160,6 +160,7 @@ function ShotCurve() {
 
   return (
     <div className="mx-auto min-h-screen max-w-md px-4 pb-16 pt-6">
+      <AppTabs />
       <header className="mb-5">
         <h1 className="text-2xl font-bold tracking-tight text-foreground">Shot Curve</h1>
         <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
