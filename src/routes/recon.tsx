@@ -109,21 +109,6 @@ function Recon() {
             />
           </label>
         </div>
-        <div className="mt-2 flex gap-2">
-          {["30", "36", "40"].map((v) => (
-            <button
-              key={v}
-              onClick={() => update({ vialMg: v })}
-              className={`rounded-md border px-3 py-1 text-xs font-medium ${
-                state.vialMg === v
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : "border-border text-muted-foreground"
-              }`}
-            >
-              {v} mg
-            </button>
-          ))}
-        </div>
 
         <div className="mt-4">
           <span className="mb-1 block text-xs text-muted-foreground">Wanted dose (mg)</span>
