@@ -58,8 +58,12 @@ function ShotCurve() {
   const [importError, setImportError] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
+  const [mounted, setMounted] = useState(false);
+
   useEffect(() => {
     setShots(loadShots());
+    setNow(Date.now());
+    setMounted(true);
     const id = setInterval(() => setNow(Date.now()), 60_000);
     return () => clearInterval(id);
   }, []);
