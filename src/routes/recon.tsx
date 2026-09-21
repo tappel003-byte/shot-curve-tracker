@@ -83,28 +83,6 @@ function Recon() {
         <p className="mt-1 text-xs text-muted-foreground">U-100 syringe: 100 units = 1 mL.</p>
       </header>
 
-      {/* Presets */}
-      <div className="mb-4 grid grid-cols-2 gap-2">
-        {PRESETS.map((p) => {
-          const active =
-            state.vialMg === p.state.vialMg &&
-            state.bacMl === p.state.bacMl;
-          return (
-            <button
-              key={p.label}
-              onClick={() => update({ vialMg: p.state.vialMg, bacMl: p.state.bacMl })}
-              className={`rounded-lg border px-3 py-2.5 text-sm font-semibold transition-colors ${
-                active
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : "border-border bg-card text-foreground"
-              }`}
-            >
-              {p.label}
-            </button>
-          );
-        })}
-      </div>
-
       <section className="rounded-xl border border-border bg-card p-4">
         <div className="grid grid-cols-2 gap-3">
           <label className="block">
