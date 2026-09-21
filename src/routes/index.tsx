@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { AppTabs } from "@/components/app-tabs";
 import {
   DRIFT_HOURS,
   fmtMg,
@@ -111,7 +112,14 @@ function ShotCurve() {
   const remove = (id: string) => persist(shots.filter((s) => s.id !== id));
 
   const exportJson = () => {
-    const blob = new Blob([JSON.stringify(shots, null, 2)], { type: "application/json" });
+    let recon: unknown = null;
+    try {
+      recon = JSON.parse(localStorage.getItem("shotcurve.recon.v1") ?? "null");
+    } catch {
+      /* ignore */
+    }
+    const payload = { app: "shot-curve", version: 1, shots, recon };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -124,14 +132,24 @@ function ShotCurve() {
     setImportError("");
     try {
       const parsed = JSON.parse(await file.text());
-      if (!Array.isArray(parsed)) throw new Error("not an array");
+      const rawShots = Array.isArray(parsed) ? parsed : parsed?.shots;
+      if (!Array.isArray(rawShots)) throw new Error("not an array");
       const clean: Shot[] = [];
-      for (const s of parsed) {
+      for (const s of rawShots) {
         if (s && typeof s.at === "number" && typeof s.mg === "number" && s.mg > 0) {
           clean.push({ id: typeof s.id === "string" ? s.id : newId(), at: s.at, mg: s.mg });
         }
       }
       persist(clean);
+      const recon = parsed?.recon;
+      if (
+        recon &&
+        typeof recon.vialMg === "string" &&
+        typeof recon.bacMl === "string" &&
+        typeof recon.wantedMg === "string"
+      ) {
+        localStorage.setItem("shotcurve.recon.v1", JSON.stringify(recon));
+      }
     } catch {
       setImportError("That file doesn't look like a Shot Curve export.");
     }
