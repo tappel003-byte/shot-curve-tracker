@@ -32,7 +32,8 @@ export function curve(shots: Shot[], from: number, to: number, stepMs: number): 
   for (let t = from; t <= to; t += stepMs) {
     pts.push({ t, mg: onBoard(shots, t) });
   }
-  if (pts.length === 0 || pts[pts.length - 1].t < to) pts.push({ t: to, mg: onBoard(shots, to) });
+  const last = pts[pts.length - 1];
+  if (!last || last.t < to) pts.push({ t: to, mg: onBoard(shots, to) });
   return pts;
 }
 
