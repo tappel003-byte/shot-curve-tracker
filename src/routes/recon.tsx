@@ -32,10 +32,6 @@ type ReconState = {
 
 const DEFAULTS: ReconState = { vialMg: "36", bacMl: "1.5", wantedMg: "6" };
 
-const PRESETS: { label: string; state: ReconState }[] = [
-  { label: "36 mg + 1.5 mL", state: { vialMg: "36", bacMl: "1.5", wantedMg: "6" } },
-  { label: "40 mg + 2.0 mL", state: { vialMg: "40", bacMl: "2.0", wantedMg: "6" } },
-];
 
 function loadRecon(): ReconState {
   try {
