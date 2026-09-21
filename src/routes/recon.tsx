@@ -111,21 +111,8 @@ function Recon() {
         </div>
 
         <div className="mt-4">
-          <span className="mb-1 block text-xs text-muted-foreground">Wanted dose (mg)</span>
-          <div className="flex gap-2">
-            {["6", "12"].map((d) => (
-              <button
-                key={d}
-                onClick={() => update({ wantedMg: d })}
-                className={`flex-1 rounded-lg border px-3 py-2.5 text-sm font-semibold ${
-                  state.wantedMg === d
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-border bg-background text-foreground"
-                }`}
-              >
-                {d} mg
-              </button>
-            ))}
+          <label className="block">
+            <span className="mb-1 block text-xs text-muted-foreground">Wanted dose (mg)</span>
             <input
               type="number"
               inputMode="decimal"
@@ -133,10 +120,9 @@ function Recon() {
               step="0.1"
               value={state.wantedMg}
               onChange={(e) => update({ wantedMg: e.target.value })}
-              className="w-24 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
-              aria-label="Custom wanted dose in mg"
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
             />
-          </div>
+          </label>
         </div>
       </section>
 
