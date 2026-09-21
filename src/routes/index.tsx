@@ -58,8 +58,12 @@ function ShotCurve() {
   const [importError, setImportError] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
+  const [mounted, setMounted] = useState(false);
+
   useEffect(() => {
     setShots(loadShots());
+    setNow(Date.now());
+    setMounted(true);
     const id = setInterval(() => setNow(Date.now()), 60_000);
     return () => clearInterval(id);
   }, []);
@@ -191,7 +195,11 @@ function ShotCurve() {
         </div>
       </section>
 
-      <Chart shots={shots} now={now} />
+      {mounted ? (
+        <Chart shots={shots} now={now} />
+      ) : (
+        <div className="h-[220px] rounded-xl border border-border bg-card" />
+      )}
 
       {/* Log form */}
       <section className="mt-6 rounded-xl border border-border bg-card p-4">
