@@ -17,9 +17,17 @@ export function contribution(mg: number, hoursAfter: number): number {
   return mg * Math.pow(0.5, (hoursAfter - PEAK_HOURS) / HALF_LIFE_HOURS);
 }
 
-/** total mg on board from all shots at time t (epoch ms) */
-export function onBoard(shots: Shot[], t: number): number {
-  let total = 0;
+/** one-time assumed starting level: {at, mg} — decays with the half-life from `at` */
+export type StartLevel = { at: number; mg: number };
+
+export function startContribution(start: StartLevel | null, t: number): number {
+  if (!start || t < start.at) return 0;
+  return start.mg * Math.pow(0.5, (t - start.at) / 3_600_000 / HALF_LIFE_HOURS);
+}
+
+/** total mg on board from all shots (plus optional starting level) at time t (epoch ms) */
+export function onBoard(shots: Shot[], t: number, start?: StartLevel | null): number {
+  let total = startContribution(start ?? null, t);
   for (const s of shots) total += contribution(s.mg, (t - s.at) / 3_600_000);
   return total;
 }
@@ -27,13 +35,19 @@ export function onBoard(shots: Shot[], t: number): number {
 export type ChartPoint = { t: number; mg: number };
 
 /** sampled curve from `from` to `to` */
-export function curve(shots: Shot[], from: number, to: number, stepMs: number): ChartPoint[] {
+export function curve(
+  shots: Shot[],
+  from: number,
+  to: number,
+  stepMs: number,
+  start?: StartLevel | null,
+): ChartPoint[] {
   const pts: ChartPoint[] = [];
   for (let t = from; t <= to; t += stepMs) {
-    pts.push({ t, mg: onBoard(shots, t) });
+    pts.push({ t, mg: onBoard(shots, t, start) });
   }
   const last = pts[pts.length - 1];
-  if (!last || last.t < to) pts.push({ t: to, mg: onBoard(shots, to) });
+  if (!last || last.t < to) pts.push({ t: to, mg: onBoard(shots, to, start) });
   return pts;
 }
 
