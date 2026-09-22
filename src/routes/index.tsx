@@ -445,11 +445,11 @@ function Chart({ shots, now, start }: { shots: Shot[]; now: number; start: Start
     const x = (t: number) => PAD.left + ((t - from) / (to - from)) * (W - PAD.left - PAD.right);
     const y = (mg: number) => PAD.top + (1 - mg / maxMg) * (H - PAD.top - PAD.bottom);
     return { pts, from, to, maxMg, x, y };
-  }, [shots, now]);
+  }, [shots, now, start]);
 
   const { pts, from, to, maxMg, x, y } = model;
   const line = pts.map((p) => `${x(p.t).toFixed(1)},${y(p.mg).toFixed(1)}`).join(" ");
-  const nowY = y(onBoard(shots, now));
+  const nowY = y(onBoard(shots, now, start));
 
   // ~5 date ticks
   const ticks: number[] = [];
@@ -496,11 +496,11 @@ function Chart({ shots, now, start }: { shots: Shot[]; now: number; start: Start
               className="stroke-accent-foreground"
               strokeWidth="1.5"
             />
-            <circle cx={x(s.at)} cy={y(onBoard(shots, s.at))} r="3.5" className="fill-primary" />
+            <circle cx={x(s.at)} cy={y(onBoard(shots, s.at, start))} r="3.5" className="fill-primary" />
           </g>
         ))}
         {/* now dot */}
-        {shots.length > 0 && <circle cx={x(now)} cy={nowY} r="4" className="fill-foreground" />}
+        {(shots.length > 0 || start) && <circle cx={x(now)} cy={nowY} r="4" className="fill-foreground" />}
         {/* x labels */}
         {ticks.map((t, i) => (
           <text
