@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { X } from "lucide-react";
 import { AppTabs } from "@/components/app-tabs";
 import {
   DRIFT_HOURS,
@@ -115,6 +116,18 @@ function ShotCurve() {
     setStartDate(v.date);
     setStartTime(v.time);
     setShowStartForm(false);
+  };
+
+  const closeStartForm = () => {
+    if (start) {
+      clearStartLevel();
+    } else {
+      setShowStartForm(false);
+      setStartMg("");
+      const v = toLocalInputValue(Date.now());
+      setStartDate(v.date);
+      setStartTime(v.time);
+    }
   };
 
   const resetForm = () => {
@@ -438,7 +451,16 @@ function ShotCurve() {
           )
         ) : (
           <>
-            <h2 className="mb-1 text-sm font-semibold text-foreground">Starting level (one-time)</h2>
+            <div className="mb-1 flex items-start justify-between gap-2">
+              <h2 className="text-sm font-semibold text-foreground">Starting level (one-time)</h2>
+              <button
+                onClick={closeStartForm}
+                className="-mr-1 -mt-1 rounded-md p-1 text-muted-foreground hover:text-foreground"
+                aria-label={start ? "Remove starting level" : "Cancel"}
+              >
+                <X size={16} />
+              </button>
+            </div>
             <p className="mb-3 text-xs text-muted-foreground">
               If you were already on it before logging here, enter roughly how many mg were on board and
               when. It decays like everything else.
@@ -476,22 +498,14 @@ function ShotCurve() {
                 />
               </label>
             </div>
-            <div className="mt-3 flex gap-2">
+            <div className="mt-3">
               <button
                 onClick={saveStartLevel}
                 disabled={!startValid}
-                className="flex-1 rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-40"
+                className="w-full rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-40"
               >
                 {start ? "Update starting level" : "Set starting level"}
               </button>
-              {start && (
-                <button
-                  onClick={clearStartLevel}
-                  className="rounded-md border border-border px-4 py-2.5 text-sm font-medium text-destructive"
-                >
-                  Remove
-                </button>
-              )}
             </div>
           </>
         )}
