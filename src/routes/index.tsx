@@ -66,6 +66,7 @@ function ShotCurve() {
 
   const [importError, setImportError] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
+  const [showStartForm, setShowStartForm] = useState(false);
 
   const [mounted, setMounted] = useState(false);
 
@@ -73,6 +74,7 @@ function ShotCurve() {
     setShots(loadShots());
     const s = loadStart();
     setStart(s);
+    setShowStartForm(!s);
     if (s) {
       const v = toLocalInputValue(s.at);
       setStartMg(String(s.mg));
@@ -102,6 +104,7 @@ function ShotCurve() {
     const next = { at, mg: startMgNum };
     setStart(next);
     saveStart(next);
+    setShowStartForm(false);
   };
 
   const clearStartLevel = () => {
@@ -111,6 +114,7 @@ function ShotCurve() {
     const v = toLocalInputValue(Date.now());
     setStartDate(v.date);
     setStartTime(v.time);
+    setShowStartForm(true);
   };
 
   const resetForm = () => {
@@ -189,6 +193,7 @@ function ShotCurve() {
         const next = { at: s.at, mg: s.mg };
         setStart(next);
         saveStart(next);
+        setShowStartForm(false);
         const v = toLocalInputValue(next.at);
         setStartMg(String(next.mg));
         setStartDate(v.date);
@@ -252,61 +257,87 @@ function ShotCurve() {
 
       {/* Starting level */}
       <section className="mt-6 rounded-xl border border-border bg-card p-4">
-        <h2 className="mb-1 text-sm font-semibold text-foreground">Starting level (one-time)</h2>
-        <p className="mb-3 text-xs text-muted-foreground">
-          If you were already on it before logging here, enter roughly how many mg were on board and
-          when. It decays like everything else.
-        </p>
-        <div className="grid grid-cols-3 gap-3">
-          <label className="block">
-            <span className="mb-1 block text-xs text-muted-foreground">mg</span>
-            <input
-              type="number"
-              inputMode="decimal"
-              min="0"
-              step="0.1"
-              value={startMg}
-              onChange={(e) => setStartMg(e.target.value)}
-              placeholder="e.g. 8"
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
-            />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-xs text-muted-foreground">Date</span>
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
-            />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-xs text-muted-foreground">Time</span>
-            <input
-              type="time"
-              value={startTime}
-              onChange={(e) => setStartTime(e.target.value)}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
-            />
-          </label>
-        </div>
-        <div className="mt-3 flex gap-2">
-          <button
-            onClick={saveStartLevel}
-            disabled={!startValid}
-            className="flex-1 rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-40"
-          >
-            {start ? "Update starting level" : "Set starting level"}
-          </button>
-          {start && (
+        {!showStartForm && start ? (
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-sm font-semibold text-foreground">Starting level</h2>
+              <p className="text-xs text-muted-foreground">
+                {fmtMg(start.mg)} mg at{" "}
+                {new Date(start.at).toLocaleString(undefined, {
+                  weekday: "short",
+                  month: "short",
+                  day: "numeric",
+                  hour: "numeric",
+                  minute: "2-digit",
+                })}
+              </p>
+            </div>
             <button
-              onClick={clearStartLevel}
-              className="rounded-md border border-border px-4 py-2.5 text-sm font-medium text-destructive"
+              onClick={() => setShowStartForm(true)}
+              className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground"
             >
-              Remove
+              Edit
             </button>
-          )}
-        </div>
+          </div>
+        ) : (
+          <>
+            <h2 className="mb-1 text-sm font-semibold text-foreground">Starting level (one-time)</h2>
+            <p className="mb-3 text-xs text-muted-foreground">
+              If you were already on it before logging here, enter roughly how many mg were on board and
+              when. It decays like everything else.
+            </p>
+            <div className="grid grid-cols-3 gap-3">
+              <label className="block">
+                <span className="mb-1 block text-xs text-muted-foreground">mg</span>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  min="0"
+                  step="0.1"
+                  value={startMg}
+                  onChange={(e) => setStartMg(e.target.value)}
+                  placeholder="e.g. 8"
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs text-muted-foreground">Date</span>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs text-muted-foreground">Time</span>
+                <input
+                  type="time"
+                  value={startTime}
+                  onChange={(e) => setStartTime(e.target.value)}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
+                />
+              </label>
+            </div>
+            <div className="mt-3 flex gap-2">
+              <button
+                onClick={saveStartLevel}
+                disabled={!startValid}
+                className="flex-1 rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-40"
+              >
+                {start ? "Update starting level" : "Set starting level"}
+              </button>
+              {start && (
+                <button
+                  onClick={clearStartLevel}
+                  className="rounded-md border border-border px-4 py-2.5 text-sm font-medium text-destructive"
+                >
+                  Remove
+                </button>
+              )}
+            </div>
+          </>
+        )}
       </section>
 
       {/* Log form */}
