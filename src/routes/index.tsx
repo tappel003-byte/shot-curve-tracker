@@ -5,11 +5,14 @@ import {
   DRIFT_HOURS,
   fmtMg,
   loadShots,
+  loadStart,
   newId,
   onBoard,
   saveShots,
+  saveStart,
   curve as buildCurve,
   type Shot,
+  type StartLevel,
 } from "@/lib/shotcurve";
 
 export const Route = createFileRoute("/")({
@@ -45,6 +48,7 @@ function toLocalInputValue(ms: number): { date: string; time: string } {
 
 function ShotCurve() {
   const [shots, setShots] = useState<Shot[]>([]);
+  const [start, setStart] = useState<StartLevel | null>(null);
   const [now, setNow] = useState(() => Date.now());
 
   // form state
