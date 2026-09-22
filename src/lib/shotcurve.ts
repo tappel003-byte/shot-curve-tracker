@@ -56,6 +56,26 @@ export function fmtMg(mg: number): string {
 }
 
 export const STORAGE_KEY = "shotcurve.shots.v1";
+export const START_KEY = "shotcurve.start.v1";
+
+export function loadStart(): StartLevel | null {
+  try {
+    const raw = localStorage.getItem(START_KEY);
+    if (!raw) return null;
+    const s = JSON.parse(raw);
+    if (s && typeof s.at === "number" && typeof s.mg === "number" && s.mg > 0) {
+      return { at: s.at, mg: s.mg };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveStart(start: StartLevel | null) {
+  if (start) localStorage.setItem(START_KEY, JSON.stringify(start));
+  else localStorage.removeItem(START_KEY);
+}
 
 export function loadShots(): Shot[] {
   try {
