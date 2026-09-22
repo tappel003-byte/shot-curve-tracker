@@ -430,17 +430,17 @@ function DoseButton({
   );
 }
 
-function Chart({ shots, now }: { shots: Shot[]; now: number }) {
+function Chart({ shots, now, start }: { shots: Shot[]; now: number; start: StartLevel | null }) {
   const W = 360;
   const H = 200;
   const PAD = { top: 12, right: 10, bottom: 22, left: 34 };
 
   const model = useMemo(() => {
     const to = now + DRIFT_HOURS * 3_600_000;
-    const earliest = shots[0] ? shots[0].at : now;
+    const earliest = Math.min(shots[0]?.at ?? now, start?.at ?? now);
     const from = Math.min(earliest, now - 3 * 86_400_000);
     const step = Math.max((to - from) / 240, 3_600_000);
-    const pts = buildCurve(shots, from, to, step);
+    const pts = buildCurve(shots, from, to, step, start);
     const maxMg = Math.max(1, ...pts.map((p) => p.mg));
     const x = (t: number) => PAD.left + ((t - from) / (to - from)) * (W - PAD.left - PAD.right);
     const y = (mg: number) => PAD.top + (1 - mg / maxMg) * (H - PAD.top - PAD.bottom);
