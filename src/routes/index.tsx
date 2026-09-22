@@ -161,7 +161,7 @@ function ShotCurve() {
     } catch {
       /* ignore */
     }
-    const payload = { app: "shot-curve", version: 1, shots, recon };
+    const payload = { app: "shot-curve", version: 1, shots, recon, start };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -184,6 +184,16 @@ function ShotCurve() {
         }
       }
       persist(clean);
+      const s = parsed?.start;
+      if (s && typeof s.at === "number" && typeof s.mg === "number" && s.mg > 0) {
+        const next = { at: s.at, mg: s.mg };
+        setStart(next);
+        saveStart(next);
+        const v = toLocalInputValue(next.at);
+        setStartMg(String(next.mg));
+        setStartDate(v.date);
+        setStartTime(v.time);
+      }
       const recon = parsed?.recon;
       if (
         recon &&
@@ -198,8 +208,8 @@ function ShotCurve() {
     }
   };
 
-  const nowMg = onBoard(shots, now);
-  const driftMg = onBoard(shots, now + DRIFT_HOURS * 3_600_000);
+  const nowMg = onBoard(shots, now, start);
+  const driftMg = onBoard(shots, now + DRIFT_HOURS * 3_600_000, start);
 
   return (
     <div className="mx-auto min-h-screen max-w-md px-4 pb-16 pt-6">
@@ -235,7 +245,7 @@ function ShotCurve() {
       </section>
 
       {mounted ? (
-        <Chart shots={shots} now={now} />
+        <Chart shots={shots} now={now} start={start} />
       ) : (
         <div className="h-[220px] rounded-xl border border-border bg-card" />
       )}
