@@ -104,6 +104,7 @@ function ShotCurve() {
     const next = { at, mg: startMgNum };
     setStart(next);
     saveStart(next);
+    setShowStartForm(false);
   };
 
   const clearStartLevel = () => {
@@ -113,6 +114,7 @@ function ShotCurve() {
     const v = toLocalInputValue(Date.now());
     setStartDate(v.date);
     setStartTime(v.time);
+    setShowStartForm(true);
   };
 
   const resetForm = () => {
