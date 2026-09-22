@@ -5,11 +5,14 @@ import {
   DRIFT_HOURS,
   fmtMg,
   loadShots,
+  loadStart,
   newId,
   onBoard,
   saveShots,
+  saveStart,
   curve as buildCurve,
   type Shot,
+  type StartLevel,
 } from "@/lib/shotcurve";
 
 export const Route = createFileRoute("/")({
@@ -45,6 +48,7 @@ function toLocalInputValue(ms: number): { date: string; time: string } {
 
 function ShotCurve() {
   const [shots, setShots] = useState<Shot[]>([]);
+  const [start, setStart] = useState<StartLevel | null>(null);
   const [now, setNow] = useState(() => Date.now());
 
   // form state
@@ -55,6 +59,11 @@ function ShotCurve() {
   const [doseChoice, setDoseChoice] = useState<"6" | "12" | "custom">("6");
   const [customMg, setCustomMg] = useState("");
 
+  // starting level form state
+  const [startMg, setStartMg] = useState("");
+  const [startDate, setStartDate] = useState(initial.date);
+  const [startTime, setStartTime] = useState(initial.time);
+
   const [importError, setImportError] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -62,6 +71,14 @@ function ShotCurve() {
 
   useEffect(() => {
     setShots(loadShots());
+    const s = loadStart();
+    setStart(s);
+    if (s) {
+      const v = toLocalInputValue(s.at);
+      setStartMg(String(s.mg));
+      setStartDate(v.date);
+      setStartTime(v.time);
+    }
     setNow(Date.now());
     setMounted(true);
     const id = setInterval(() => setNow(Date.now()), 60_000);
@@ -72,6 +89,28 @@ function ShotCurve() {
     const sorted = [...next].sort((a, b) => a.at - b.at);
     setShots(sorted);
     saveShots(sorted);
+  };
+
+  const startMgNum = parseFloat(startMg);
+  const startValid =
+    !!startDate && !!startTime && Number.isFinite(startMgNum) && startMgNum > 0;
+
+  const saveStartLevel = () => {
+    if (!startValid) return;
+    const at = new Date(`${startDate}T${startTime}`).getTime();
+    if (!Number.isFinite(at)) return;
+    const next = { at, mg: startMgNum };
+    setStart(next);
+    saveStart(next);
+  };
+
+  const clearStartLevel = () => {
+    setStart(null);
+    saveStart(null);
+    setStartMg("");
+    const v = toLocalInputValue(Date.now());
+    setStartDate(v.date);
+    setStartTime(v.time);
   };
 
   const resetForm = () => {
@@ -122,7 +161,7 @@ function ShotCurve() {
     } catch {
       /* ignore */
     }
-    const payload = { app: "shot-curve", version: 1, shots, recon };
+    const payload = { app: "shot-curve", version: 1, shots, recon, start };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -145,6 +184,16 @@ function ShotCurve() {
         }
       }
       persist(clean);
+      const s = parsed?.start;
+      if (s && typeof s.at === "number" && typeof s.mg === "number" && s.mg > 0) {
+        const next = { at: s.at, mg: s.mg };
+        setStart(next);
+        saveStart(next);
+        const v = toLocalInputValue(next.at);
+        setStartMg(String(next.mg));
+        setStartDate(v.date);
+        setStartTime(v.time);
+      }
       const recon = parsed?.recon;
       if (
         recon &&
@@ -159,8 +208,8 @@ function ShotCurve() {
     }
   };
 
-  const nowMg = onBoard(shots, now);
-  const driftMg = onBoard(shots, now + DRIFT_HOURS * 3_600_000);
+  const nowMg = onBoard(shots, now, start);
+  const driftMg = onBoard(shots, now + DRIFT_HOURS * 3_600_000, start);
 
   return (
     <div className="mx-auto min-h-screen max-w-md px-4 pb-16 pt-6">
@@ -196,10 +245,69 @@ function ShotCurve() {
       </section>
 
       {mounted ? (
-        <Chart shots={shots} now={now} />
+        <Chart shots={shots} now={now} start={start} />
       ) : (
         <div className="h-[220px] rounded-xl border border-border bg-card" />
       )}
+
+      {/* Starting level */}
+      <section className="mt-6 rounded-xl border border-border bg-card p-4">
+        <h2 className="mb-1 text-sm font-semibold text-foreground">Starting level (one-time)</h2>
+        <p className="mb-3 text-xs text-muted-foreground">
+          If you were already on it before logging here, enter roughly how many mg were on board and
+          when. It decays like everything else.
+        </p>
+        <div className="grid grid-cols-3 gap-3">
+          <label className="block">
+            <span className="mb-1 block text-xs text-muted-foreground">mg</span>
+            <input
+              type="number"
+              inputMode="decimal"
+              min="0"
+              step="0.1"
+              value={startMg}
+              onChange={(e) => setStartMg(e.target.value)}
+              placeholder="e.g. 8"
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs text-muted-foreground">Date</span>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs text-muted-foreground">Time</span>
+            <input
+              type="time"
+              value={startTime}
+              onChange={(e) => setStartTime(e.target.value)}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
+            />
+          </label>
+        </div>
+        <div className="mt-3 flex gap-2">
+          <button
+            onClick={saveStartLevel}
+            disabled={!startValid}
+            className="flex-1 rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-40"
+          >
+            {start ? "Update starting level" : "Set starting level"}
+          </button>
+          {start && (
+            <button
+              onClick={clearStartLevel}
+              className="rounded-md border border-border px-4 py-2.5 text-sm font-medium text-destructive"
+            >
+              Remove
+            </button>
+          )}
+        </div>
+      </section>
 
       {/* Log form */}
       <section className="mt-6 rounded-xl border border-border bg-card p-4">
@@ -381,26 +489,26 @@ function DoseButton({
   );
 }
 
-function Chart({ shots, now }: { shots: Shot[]; now: number }) {
+function Chart({ shots, now, start }: { shots: Shot[]; now: number; start: StartLevel | null }) {
   const W = 360;
   const H = 200;
   const PAD = { top: 12, right: 10, bottom: 22, left: 34 };
 
   const model = useMemo(() => {
     const to = now + DRIFT_HOURS * 3_600_000;
-    const earliest = shots[0] ? shots[0].at : now;
+    const earliest = Math.min(shots[0]?.at ?? now, start?.at ?? now);
     const from = Math.min(earliest, now - 3 * 86_400_000);
     const step = Math.max((to - from) / 240, 3_600_000);
-    const pts = buildCurve(shots, from, to, step);
+    const pts = buildCurve(shots, from, to, step, start);
     const maxMg = Math.max(1, ...pts.map((p) => p.mg));
     const x = (t: number) => PAD.left + ((t - from) / (to - from)) * (W - PAD.left - PAD.right);
     const y = (mg: number) => PAD.top + (1 - mg / maxMg) * (H - PAD.top - PAD.bottom);
     return { pts, from, to, maxMg, x, y };
-  }, [shots, now]);
+  }, [shots, now, start]);
 
   const { pts, from, to, maxMg, x, y } = model;
   const line = pts.map((p) => `${x(p.t).toFixed(1)},${y(p.mg).toFixed(1)}`).join(" ");
-  const nowY = y(onBoard(shots, now));
+  const nowY = y(onBoard(shots, now, start));
 
   // ~5 date ticks
   const ticks: number[] = [];
@@ -433,7 +541,7 @@ function Chart({ shots, now }: { shots: Shot[]; now: number }) {
           strokeDasharray="3 3"
         />
         {/* curve */}
-        {shots.length > 0 && (
+        {(shots.length > 0 || start) && (
           <polyline points={line} fill="none" className="stroke-primary" strokeWidth="2.5" strokeLinejoin="round" />
         )}
         {/* shot marks */}
@@ -447,11 +555,11 @@ function Chart({ shots, now }: { shots: Shot[]; now: number }) {
               className="stroke-accent-foreground"
               strokeWidth="1.5"
             />
-            <circle cx={x(s.at)} cy={y(onBoard(shots, s.at))} r="3.5" className="fill-primary" />
+            <circle cx={x(s.at)} cy={y(onBoard(shots, s.at, start))} r="3.5" className="fill-primary" />
           </g>
         ))}
         {/* now dot */}
-        {shots.length > 0 && <circle cx={x(now)} cy={nowY} r="4" className="fill-foreground" />}
+        {(shots.length > 0 || start) && <circle cx={x(now)} cy={nowY} r="4" className="fill-foreground" />}
         {/* x labels */}
         {ticks.map((t, i) => (
           <text
