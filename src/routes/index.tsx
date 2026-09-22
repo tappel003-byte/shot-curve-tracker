@@ -118,6 +118,18 @@ function ShotCurve() {
     setShowStartForm(false);
   };
 
+  const closeStartForm = () => {
+    if (start) {
+      clearStartLevel();
+    } else {
+      setShowStartForm(false);
+      setStartMg("");
+      const v = toLocalInputValue(Date.now());
+      setStartDate(v.date);
+      setStartTime(v.time);
+    }
+  };
+
   const resetForm = () => {
     const v = toLocalInputValue(Date.now());
     setDate(v.date);
