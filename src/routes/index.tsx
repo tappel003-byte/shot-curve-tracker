@@ -193,6 +193,7 @@ function ShotCurve() {
         const next = { at: s.at, mg: s.mg };
         setStart(next);
         saveStart(next);
+        setShowStartForm(false);
         const v = toLocalInputValue(next.at);
         setStartMg(String(next.mg));
         setStartDate(v.date);
