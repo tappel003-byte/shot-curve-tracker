@@ -250,6 +250,65 @@ function ShotCurve() {
         <div className="h-[220px] rounded-xl border border-border bg-card" />
       )}
 
+      {/* Starting level */}
+      <section className="mt-6 rounded-xl border border-border bg-card p-4">
+        <h2 className="mb-1 text-sm font-semibold text-foreground">Starting level (one-time)</h2>
+        <p className="mb-3 text-xs text-muted-foreground">
+          If you were already on it before logging here, enter roughly how many mg were on board and
+          when. It decays like everything else.
+        </p>
+        <div className="grid grid-cols-3 gap-3">
+          <label className="block">
+            <span className="mb-1 block text-xs text-muted-foreground">mg</span>
+            <input
+              type="number"
+              inputMode="decimal"
+              min="0"
+              step="0.1"
+              value={startMg}
+              onChange={(e) => setStartMg(e.target.value)}
+              placeholder="e.g. 8"
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs text-muted-foreground">Date</span>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs text-muted-foreground">Time</span>
+            <input
+              type="time"
+              value={startTime}
+              onChange={(e) => setStartTime(e.target.value)}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
+            />
+          </label>
+        </div>
+        <div className="mt-3 flex gap-2">
+          <button
+            onClick={saveStartLevel}
+            disabled={!startValid}
+            className="flex-1 rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-40"
+          >
+            {start ? "Update starting level" : "Set starting level"}
+          </button>
+          {start && (
+            <button
+              onClick={clearStartLevel}
+              className="rounded-md border border-border px-4 py-2.5 text-sm font-medium text-destructive"
+            >
+              Remove
+            </button>
+          )}
+        </div>
+      </section>
+
       {/* Log form */}
       <section className="mt-6 rounded-xl border border-border bg-card p-4">
         <h2 className="mb-3 text-sm font-semibold text-foreground">
@@ -482,7 +541,7 @@ function Chart({ shots, now, start }: { shots: Shot[]; now: number; start: Start
           strokeDasharray="3 3"
         />
         {/* curve */}
-        {shots.length > 0 && (
+        {(shots.length > 0 || start) && (
           <polyline points={line} fill="none" className="stroke-primary" strokeWidth="2.5" strokeLinejoin="round" />
         )}
         {/* shot marks */}
