@@ -74,7 +74,7 @@ function ShotCurve() {
     setShots(loadShots());
     const s = loadStart();
     setStart(s);
-    setShowStartForm(!s);
+    setShowStartForm(false);
     if (s) {
       const v = toLocalInputValue(s.at);
       setStartMg(String(s.mg));
@@ -114,7 +114,7 @@ function ShotCurve() {
     const v = toLocalInputValue(Date.now());
     setStartDate(v.date);
     setStartTime(v.time);
-    setShowStartForm(true);
+    setShowStartForm(false);
   };
 
   const resetForm = () => {
@@ -408,25 +408,34 @@ function ShotCurve() {
 
       {/* Starting level */}
       <section className="mt-6 rounded-xl border border-dashed border-border bg-card p-3">
-        {!showStartForm && start ? (
-          <div className="flex items-center justify-between gap-3">
-            <div className="text-xs text-muted-foreground">
-              Starting level: <span className="font-medium text-foreground">{fmtMg(start.mg)} mg</span> at{" "}
-              {new Date(start.at).toLocaleString(undefined, {
-                weekday: "short",
-                month: "short",
-                day: "numeric",
-                hour: "numeric",
-                minute: "2-digit",
-              })}
+        {!showStartForm ? (
+          start ? (
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-xs text-muted-foreground">
+                Starting level: <span className="font-medium text-foreground">{fmtMg(start.mg)} mg</span> at{" "}
+                {new Date(start.at).toLocaleString(undefined, {
+                  weekday: "short",
+                  month: "short",
+                  day: "numeric",
+                  hour: "numeric",
+                  minute: "2-digit",
+                })}
+              </div>
+              <button
+                onClick={() => setShowStartForm(true)}
+                className="shrink-0 rounded-md border border-border px-2.5 py-1 text-[11px] font-medium text-foreground"
+              >
+                Edit
+              </button>
             </div>
+          ) : (
             <button
               onClick={() => setShowStartForm(true)}
-              className="shrink-0 rounded-md border border-border px-2.5 py-1 text-[11px] font-medium text-foreground"
+              className="w-full rounded-md border border-border py-2 text-xs font-medium text-foreground"
             >
-              Edit
+              Set starting level
             </button>
-          </div>
+          )
         ) : (
           <>
             <h2 className="mb-1 text-sm font-semibold text-foreground">Starting level (one-time)</h2>
