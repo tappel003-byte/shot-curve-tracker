@@ -74,6 +74,7 @@ function ShotCurve() {
     setShots(loadShots());
     const s = loadStart();
     setStart(s);
+    setShowStartForm(!s);
     if (s) {
       const v = toLocalInputValue(s.at);
       setStartMg(String(s.mg));
