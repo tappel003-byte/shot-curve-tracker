@@ -59,6 +59,11 @@ function ShotCurve() {
   const [doseChoice, setDoseChoice] = useState<"6" | "12" | "custom">("6");
   const [customMg, setCustomMg] = useState("");
 
+  // starting level form state
+  const [startMg, setStartMg] = useState("");
+  const [startDate, setStartDate] = useState(initial.date);
+  const [startTime, setStartTime] = useState(initial.time);
+
   const [importError, setImportError] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -66,6 +71,14 @@ function ShotCurve() {
 
   useEffect(() => {
     setShots(loadShots());
+    const s = loadStart();
+    setStart(s);
+    if (s) {
+      const v = toLocalInputValue(s.at);
+      setStartMg(String(s.mg));
+      setStartDate(v.date);
+      setStartTime(v.time);
+    }
     setNow(Date.now());
     setMounted(true);
     const id = setInterval(() => setNow(Date.now()), 60_000);
@@ -76,6 +89,28 @@ function ShotCurve() {
     const sorted = [...next].sort((a, b) => a.at - b.at);
     setShots(sorted);
     saveShots(sorted);
+  };
+
+  const startMgNum = parseFloat(startMg);
+  const startValid =
+    !!startDate && !!startTime && Number.isFinite(startMgNum) && startMgNum > 0;
+
+  const saveStartLevel = () => {
+    if (!startValid) return;
+    const at = new Date(`${startDate}T${startTime}`).getTime();
+    if (!Number.isFinite(at)) return;
+    const next = { at, mg: startMgNum };
+    setStart(next);
+    saveStart(next);
+  };
+
+  const clearStartLevel = () => {
+    setStart(null);
+    saveStart(null);
+    setStartMg("");
+    const v = toLocalInputValue(Date.now());
+    setStartDate(v.date);
+    setStartTime(v.time);
   };
 
   const resetForm = () => {
