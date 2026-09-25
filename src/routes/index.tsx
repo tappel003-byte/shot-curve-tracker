@@ -47,6 +47,13 @@ function toLocalInputValue(ms: number): { date: string; time: string } {
   };
 }
 
+// 6 mg = 25 units, 12 mg = 50 units
+function unitsFor(mg: number): string {
+  const u = (mg * 25) / 6;
+  return Number.isInteger(u) ? String(u) : u.toFixed(1);
+}
+
+
 function ShotCurve() {
   const [shots, setShots] = useState<Shot[]>([]);
   const [start, setStart] = useState<StartLevel | null>(null);
