@@ -231,6 +231,11 @@ function ShotCurve() {
   const nowMg = onBoard(shots, now, start);
   const driftMg = onBoard(shots, now + DRIFT_HOURS * 3_600_000, start);
 
+  const lastShot = shots.length ? shots[shots.length - 1] : null;
+  const nextAt = lastShot ? lastShot.at + DRIFT_HOURS * 3_600_000 : null;
+  const nextMg = nextDose ?? lastShot?.mg ?? 6;
+
+
   return (
     <div className="mx-auto min-h-screen max-w-md px-4 pb-16 pt-6">
       <AppTabs />
