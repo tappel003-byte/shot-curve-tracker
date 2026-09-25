@@ -70,6 +70,8 @@ function ShotCurve() {
   const [showStartForm, setShowStartForm] = useState(false);
 
   const [mounted, setMounted] = useState(false);
+  const [scale, setScale] = useState<Scale>("1W");
+
 
   useEffect(() => {
     setShots(loadShots());
