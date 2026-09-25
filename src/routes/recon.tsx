@@ -116,7 +116,7 @@ function Recon() {
           </label>
         </div>
 
-        <div className="mt-4">
+        <div className="mt-4 grid grid-cols-2 gap-3">
           <label className="block">
             <span className="mb-1 block text-xs text-muted-foreground">Wanted dose (mg)</span>
             <input
@@ -126,6 +126,18 @@ function Recon() {
               step="0.1"
               value={state.wantedMg}
               onChange={(e) => update({ wantedMg: e.target.value })}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs text-muted-foreground">Every (days)</span>
+            <input
+              type="number"
+              inputMode="decimal"
+              min="0"
+              step="0.5"
+              value={state.scheduleDays}
+              onChange={(e) => update({ scheduleDays: e.target.value })}
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
             />
           </label>
