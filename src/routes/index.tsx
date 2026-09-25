@@ -264,6 +264,49 @@ function ShotCurve() {
         </div>
       </section>
 
+      {/* Next shot */}
+      {mounted && nextAt !== null && (
+        <section className="mb-6 rounded-xl border border-border bg-card p-4">
+          <div className="flex items-baseline justify-between gap-2">
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Next shot
+            </div>
+            <div className="text-[11px] text-muted-foreground">every 3.5 days</div>
+          </div>
+          <div className="mt-1 text-lg font-semibold text-foreground">
+            {new Date(nextAt).toLocaleString(undefined, {
+              weekday: "long",
+              month: "short",
+              day: "numeric",
+              hour: "numeric",
+              minute: "2-digit",
+            })}
+          </div>
+          <div className="mt-3 flex items-center gap-2">
+            {[6, 12].map((d) => (
+              <button
+                key={d}
+                onClick={() => setNextDose(d)}
+                className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
+                  nextMg === d
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border bg-background text-foreground"
+                }`}
+              >
+                {d} mg
+              </button>
+            ))}
+            <span className="ml-auto text-xs text-muted-foreground">
+              {unitsFor(nextMg)} units
+            </span>
+          </div>
+          <div className="mt-2 text-[11px] text-muted-foreground">
+            On board then: {fmtMg(onBoard(shots, nextAt, start))} mg before the shot
+          </div>
+        </section>
+      )}
+
+
       {mounted ? (
         <Chart shots={shots} now={now} start={start} scale={scale} onScaleChange={setScale} />
       ) : (
