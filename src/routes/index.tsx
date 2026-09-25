@@ -640,19 +640,43 @@ function Chart({
           <polyline points={line} fill="none" className="stroke-primary" strokeWidth="2.5" strokeLinejoin="round" />
         )}
         {/* shot marks */}
-        {shots.map((s) => (
-          <g key={s.id}>
-            <line
-              x1={x(s.at)}
-              x2={x(s.at)}
-              y1={H - PAD.bottom}
-              y2={H - PAD.bottom + 6}
-              className="stroke-accent-foreground"
-              strokeWidth="1.5"
-            />
-            <circle cx={x(s.at)} cy={y(onBoard(shots, s.at, start))} r="3.5" className="fill-primary" />
-          </g>
-        ))}
+        {visible.map((s) => {
+          const cx = x(s.at);
+          const cy = y(onBoard(shots, s.at, start));
+          const label = `${fmtMg(s.mg)} mg`;
+          const bw = label.length * 5 + 8;
+          const bx = Math.min(Math.max(cx - bw / 2, PAD.left), W - PAD.right - bw);
+          const by = Math.max(cy - 20, 2);
+          return (
+            <g key={s.id}>
+              <line
+                x1={cx}
+                x2={cx}
+                y1={H - PAD.bottom}
+                y2={H - PAD.bottom + 6}
+                className="stroke-accent-foreground"
+                strokeWidth="1.5"
+              />
+              <circle cx={cx} cy={cy} r="3.5" className="fill-primary" />
+              {showBadges && (
+                <g>
+                  <rect x={bx} y={by} width={bw} height="13" rx="6.5" className="fill-primary" />
+                  <text
+                    x={bx + bw / 2}
+                    y={by + 9.5}
+                    textAnchor="middle"
+                    className="fill-primary-foreground"
+                    fontSize="8.5"
+                    fontWeight="600"
+                  >
+                    {label}
+                  </text>
+                </g>
+              )}
+            </g>
+          );
+        })}
+
         {/* now dot */}
         {(shots.length > 0 || start) && <circle cx={x(now)} cy={nowY} r="4" className="fill-foreground" />}
         {/* x labels */}
