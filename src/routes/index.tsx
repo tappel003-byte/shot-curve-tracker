@@ -78,7 +78,10 @@ function ShotCurve() {
 
   const [mounted, setMounted] = useState(false);
   const [scale, setScale] = useState<Scale>("1W");
-  const [nextDose, setNextDose] = useState<number | null>(null);
+  const [schedule, setSchedule] = useState<{ days: number; mg: number | null }>({
+    days: DRIFT_HOURS / 24,
+    mg: null,
+  });
 
 
 
@@ -92,6 +95,17 @@ function ShotCurve() {
       setStartMg(String(s.mg));
       setStartDate(v.date);
       setStartTime(v.time);
+    }
+    try {
+      const r = JSON.parse(localStorage.getItem("shotcurve.recon.v1") ?? "null");
+      const days = parseFloat(r?.scheduleDays);
+      const mg = parseFloat(r?.wantedMg);
+      setSchedule({
+        days: Number.isFinite(days) && days > 0 ? days : DRIFT_HOURS / 24,
+        mg: Number.isFinite(mg) && mg > 0 ? mg : null,
+      });
+    } catch {
+      /* ignore */
     }
     setNow(Date.now());
     setMounted(true);
@@ -241,8 +255,9 @@ function ShotCurve() {
   const driftMg = onBoard(shots, now + DRIFT_HOURS * 3_600_000, start);
 
   const lastShot = shots.length ? shots[shots.length - 1] : null;
-  const nextAt = lastShot ? lastShot.at + DRIFT_HOURS * 3_600_000 : null;
-  const nextMg = nextDose ?? lastShot?.mg ?? 6;
+  const intervalHours = schedule.days > 0 ? schedule.days * 24 : DRIFT_HOURS;
+  const nextAt = lastShot ? lastShot.at + intervalHours * 3_600_000 : null;
+  const nextMg = schedule.mg ?? lastShot?.mg ?? 6;
 
 
   return (
@@ -278,46 +293,23 @@ function ShotCurve() {
         </div>
       </section>
 
-      {/* Next shot */}
+      {/* Next shot pill */}
       {mounted && nextAt !== null && (
-        <section className="mb-6 rounded-xl border border-border bg-card p-4">
-          <div className="flex items-baseline justify-between gap-2">
-            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Next shot
-            </div>
-            <div className="text-[11px] text-muted-foreground">every 3.5 days</div>
-          </div>
-          <div className="mt-1 text-lg font-semibold text-foreground">
+        <div className="mb-6 flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-xs">
+          <span className="font-semibold uppercase tracking-wide text-muted-foreground">Next</span>
+          <span className="font-medium text-foreground">
             {new Date(nextAt).toLocaleString(undefined, {
-              weekday: "long",
+              weekday: "short",
               month: "short",
               day: "numeric",
               hour: "numeric",
               minute: "2-digit",
             })}
-          </div>
-          <div className="mt-3 flex items-center gap-2">
-            {[6, 12].map((d) => (
-              <button
-                key={d}
-                onClick={() => setNextDose(d)}
-                className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
-                  nextMg === d
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-border bg-background text-foreground"
-                }`}
-              >
-                {d} mg
-              </button>
-            ))}
-            <span className="ml-auto text-xs text-muted-foreground">
-              {unitsFor(nextMg)} units
-            </span>
-          </div>
-          <div className="mt-2 text-[11px] text-muted-foreground">
-            On board then: {fmtMg(onBoard(shots, nextAt, start))} mg before the shot
-          </div>
-        </section>
+          </span>
+          <span className="ml-auto shrink-0 font-semibold text-primary">
+            {fmtMg(nextMg)} mg · {unitsFor(nextMg)} u
+          </span>
+        </div>
       )}
 
 

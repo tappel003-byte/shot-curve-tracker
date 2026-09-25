@@ -28,9 +28,10 @@ type ReconState = {
   vialMg: string;
   bacMl: string;
   wantedMg: string;
+  scheduleDays: string;
 };
 
-const DEFAULTS: ReconState = { vialMg: "36", bacMl: "1.5", wantedMg: "6" };
+const DEFAULTS: ReconState = { vialMg: "36", bacMl: "1.5", wantedMg: "6", scheduleDays: "3.5" };
 
 
 function loadRecon(): ReconState {
@@ -39,7 +40,12 @@ function loadRecon(): ReconState {
     if (!raw) return DEFAULTS;
     const p = JSON.parse(raw);
     if (p && typeof p.vialMg === "string" && typeof p.bacMl === "string" && typeof p.wantedMg === "string") {
-      return p;
+      return {
+        vialMg: p.vialMg,
+        bacMl: p.bacMl,
+        wantedMg: p.wantedMg,
+        scheduleDays: typeof p.scheduleDays === "string" ? p.scheduleDays : DEFAULTS.scheduleDays,
+      };
     }
   } catch {
     /* ignore */
@@ -110,7 +116,7 @@ function Recon() {
           </label>
         </div>
 
-        <div className="mt-4">
+        <div className="mt-4 grid grid-cols-2 gap-3">
           <label className="block">
             <span className="mb-1 block text-xs text-muted-foreground">Wanted dose (mg)</span>
             <input
@@ -120,6 +126,18 @@ function Recon() {
               step="0.1"
               value={state.wantedMg}
               onChange={(e) => update({ wantedMg: e.target.value })}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs text-muted-foreground">Every (days)</span>
+            <input
+              type="number"
+              inputMode="decimal"
+              min="0"
+              step="0.5"
+              value={state.scheduleDays}
+              onChange={(e) => update({ scheduleDays: e.target.value })}
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
             />
           </label>
