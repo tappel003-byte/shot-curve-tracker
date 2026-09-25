@@ -47,6 +47,13 @@ function toLocalInputValue(ms: number): { date: string; time: string } {
   };
 }
 
+// 6 mg = 25 units, 12 mg = 50 units
+function unitsFor(mg: number): string {
+  const u = (mg * 25) / 6;
+  return Number.isInteger(u) ? String(u) : u.toFixed(1);
+}
+
+
 function ShotCurve() {
   const [shots, setShots] = useState<Shot[]>([]);
   const [start, setStart] = useState<StartLevel | null>(null);
@@ -71,6 +78,8 @@ function ShotCurve() {
 
   const [mounted, setMounted] = useState(false);
   const [scale, setScale] = useState<Scale>("1W");
+  const [nextDose, setNextDose] = useState<number | null>(null);
+
 
 
   useEffect(() => {
@@ -231,6 +240,11 @@ function ShotCurve() {
   const nowMg = onBoard(shots, now, start);
   const driftMg = onBoard(shots, now + DRIFT_HOURS * 3_600_000, start);
 
+  const lastShot = shots.length ? shots[shots.length - 1] : null;
+  const nextAt = lastShot ? lastShot.at + DRIFT_HOURS * 3_600_000 : null;
+  const nextMg = nextDose ?? lastShot?.mg ?? 6;
+
+
   return (
     <div className="mx-auto min-h-screen max-w-md px-4 pb-16 pt-6">
       <AppTabs />
@@ -263,6 +277,49 @@ function ShotCurve() {
           <div className="mt-1 text-[11px] text-muted-foreground">if nothing else is taken</div>
         </div>
       </section>
+
+      {/* Next shot */}
+      {mounted && nextAt !== null && (
+        <section className="mb-6 rounded-xl border border-border bg-card p-4">
+          <div className="flex items-baseline justify-between gap-2">
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Next shot
+            </div>
+            <div className="text-[11px] text-muted-foreground">every 3.5 days</div>
+          </div>
+          <div className="mt-1 text-lg font-semibold text-foreground">
+            {new Date(nextAt).toLocaleString(undefined, {
+              weekday: "long",
+              month: "short",
+              day: "numeric",
+              hour: "numeric",
+              minute: "2-digit",
+            })}
+          </div>
+          <div className="mt-3 flex items-center gap-2">
+            {[6, 12].map((d) => (
+              <button
+                key={d}
+                onClick={() => setNextDose(d)}
+                className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
+                  nextMg === d
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border bg-background text-foreground"
+                }`}
+              >
+                {d} mg
+              </button>
+            ))}
+            <span className="ml-auto text-xs text-muted-foreground">
+              {unitsFor(nextMg)} units
+            </span>
+          </div>
+          <div className="mt-2 text-[11px] text-muted-foreground">
+            On board then: {fmtMg(onBoard(shots, nextAt, start))} mg before the shot
+          </div>
+        </section>
+      )}
+
 
       {mounted ? (
         <Chart shots={shots} now={now} start={start} scale={scale} onScaleChange={setScale} />
@@ -565,12 +622,13 @@ function Chart({
   const PAD = { top: 22, right: 10, bottom: 22, left: 34 };
 
   const model = useMemo(() => {
-    const to = now + DRIFT_HOURS * 3_600_000;
-    const earliest = Math.min(shots[0]?.at ?? now, start?.at ?? now);
-    const from =
+    const anchor = Math.min(shots[0]?.at ?? now, start?.at ?? now, now);
+    const from = anchor - 12 * 3_600_000;
+    const minTo = now + DRIFT_HOURS * 3_600_000;
+    const to =
       scale === "All"
-        ? Math.min(earliest, now - 3 * 86_400_000)
-        : now - SCALE_DAYS[scale] * 86_400_000;
+        ? Math.max(minTo, from + 14 * 86_400_000)
+        : Math.max(minTo, from + SCALE_DAYS[scale] * 86_400_000);
     const step = Math.max((to - from) / 240, 3_600_000);
     const pts = buildCurve(shots, from, to, step, start);
     const maxMg = Math.max(1, ...pts.map((p) => p.mg));
@@ -578,6 +636,7 @@ function Chart({
     const y = (mg: number) => PAD.top + (1 - mg / maxMg) * (H - PAD.top - PAD.bottom);
     return { pts, from, to, maxMg, x, y };
   }, [shots, now, start, scale]);
+
 
   const { pts, from, to, maxMg, x, y } = model;
   const line = pts.map((p) => `${x(p.t).toFixed(1)},${y(p.mg).toFixed(1)}`).join(" ");
