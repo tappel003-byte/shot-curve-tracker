@@ -70,6 +70,8 @@ function ShotCurve() {
   const [showStartForm, setShowStartForm] = useState(false);
 
   const [mounted, setMounted] = useState(false);
+  const [scale, setScale] = useState<Scale>("1W");
+
 
   useEffect(() => {
     setShots(loadShots());
@@ -263,10 +265,11 @@ function ShotCurve() {
       </section>
 
       {mounted ? (
-        <Chart shots={shots} now={now} start={start} />
+        <Chart shots={shots} now={now} start={start} scale={scale} onScaleChange={setScale} />
       ) : (
         <div className="h-[220px] rounded-xl border border-border bg-card" />
       )}
+
 
       {/* Log form */}
       <section className="mt-6 rounded-xl border border-border bg-card p-4">
@@ -540,22 +543,41 @@ function DoseButton({
   );
 }
 
-function Chart({ shots, now, start }: { shots: Shot[]; now: number; start: StartLevel | null }) {
+type Scale = "1W" | "1M" | "3M" | "All";
+const SCALES: Scale[] = ["1W", "1M", "3M", "All"];
+const SCALE_DAYS: Record<Exclude<Scale, "All">, number> = { "1W": 7, "1M": 30, "3M": 90 };
+
+function Chart({
+  shots,
+  now,
+  start,
+  scale,
+  onScaleChange,
+}: {
+  shots: Shot[];
+  now: number;
+  start: StartLevel | null;
+  scale: Scale;
+  onScaleChange: (s: Scale) => void;
+}) {
   const W = 360;
   const H = 200;
-  const PAD = { top: 12, right: 10, bottom: 22, left: 34 };
+  const PAD = { top: 22, right: 10, bottom: 22, left: 34 };
 
   const model = useMemo(() => {
     const to = now + DRIFT_HOURS * 3_600_000;
     const earliest = Math.min(shots[0]?.at ?? now, start?.at ?? now);
-    const from = Math.min(earliest, now - 3 * 86_400_000);
+    const from =
+      scale === "All"
+        ? Math.min(earliest, now - 3 * 86_400_000)
+        : now - SCALE_DAYS[scale] * 86_400_000;
     const step = Math.max((to - from) / 240, 3_600_000);
     const pts = buildCurve(shots, from, to, step, start);
     const maxMg = Math.max(1, ...pts.map((p) => p.mg));
     const x = (t: number) => PAD.left + ((t - from) / (to - from)) * (W - PAD.left - PAD.right);
     const y = (mg: number) => PAD.top + (1 - mg / maxMg) * (H - PAD.top - PAD.bottom);
     return { pts, from, to, maxMg, x, y };
-  }, [shots, now, start]);
+  }, [shots, now, start, scale]);
 
   const { pts, from, to, maxMg, x, y } = model;
   const line = pts.map((p) => `${x(p.t).toFixed(1)},${y(p.mg).toFixed(1)}`).join(" ");
@@ -566,9 +588,31 @@ function Chart({ shots, now, start }: { shots: Shot[]; now: number; start: Start
   const tickStep = (to - from) / 4;
   for (let i = 0; i <= 4; i++) ticks.push(from + i * tickStep);
 
+  // dose badges: only on the closer scales, and only when marks aren't crowded
+  const visible = shots.filter((s) => s.at >= from && s.at <= to);
+  const showBadges =
+    (scale === "1W" || scale === "1M") &&
+    visible.every((s, i) => i === 0 || x(s.at) - x(visible[i - 1]!.at) > 34);
+
   return (
     <section className="rounded-xl border border-border bg-card p-3">
+      <div className="mb-2 flex gap-1">
+        {SCALES.map((s) => (
+          <button
+            key={s}
+            onClick={() => onScaleChange(s)}
+            className={`flex-1 rounded-full px-2 py-1 text-[11px] font-semibold transition-colors ${
+              s === scale
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted text-muted-foreground"
+            }`}
+          >
+            {s}
+          </button>
+        ))}
+      </div>
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="Estimated mg on board over time">
+
         {/* gridlines */}
         {[0.25, 0.5, 0.75, 1].map((f) => {
           const gy = y(maxMg * f);
@@ -596,19 +640,43 @@ function Chart({ shots, now, start }: { shots: Shot[]; now: number; start: Start
           <polyline points={line} fill="none" className="stroke-primary" strokeWidth="2.5" strokeLinejoin="round" />
         )}
         {/* shot marks */}
-        {shots.map((s) => (
-          <g key={s.id}>
-            <line
-              x1={x(s.at)}
-              x2={x(s.at)}
-              y1={H - PAD.bottom}
-              y2={H - PAD.bottom + 6}
-              className="stroke-accent-foreground"
-              strokeWidth="1.5"
-            />
-            <circle cx={x(s.at)} cy={y(onBoard(shots, s.at, start))} r="3.5" className="fill-primary" />
-          </g>
-        ))}
+        {visible.map((s) => {
+          const cx = x(s.at);
+          const cy = y(onBoard(shots, s.at, start));
+          const label = `${fmtMg(s.mg)} mg`;
+          const bw = label.length * 5 + 8;
+          const bx = Math.min(Math.max(cx - bw / 2, PAD.left), W - PAD.right - bw);
+          const by = Math.max(cy - 20, 2);
+          return (
+            <g key={s.id}>
+              <line
+                x1={cx}
+                x2={cx}
+                y1={H - PAD.bottom}
+                y2={H - PAD.bottom + 6}
+                className="stroke-accent-foreground"
+                strokeWidth="1.5"
+              />
+              <circle cx={cx} cy={cy} r="3.5" className="fill-primary" />
+              {showBadges && (
+                <g>
+                  <rect x={bx} y={by} width={bw} height="13" rx="6.5" className="fill-primary" />
+                  <text
+                    x={bx + bw / 2}
+                    y={by + 9.5}
+                    textAnchor="middle"
+                    className="fill-primary-foreground"
+                    fontSize="8.5"
+                    fontWeight="600"
+                  >
+                    {label}
+                  </text>
+                </g>
+              )}
+            </g>
+          );
+        })}
+
         {/* now dot */}
         {(shots.length > 0 || start) && <circle cx={x(now)} cy={nowY} r="4" className="fill-foreground" />}
         {/* x labels */}
