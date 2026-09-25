@@ -96,6 +96,17 @@ function ShotCurve() {
       setStartDate(v.date);
       setStartTime(v.time);
     }
+    try {
+      const r = JSON.parse(localStorage.getItem("shotcurve.recon.v1") ?? "null");
+      const days = parseFloat(r?.scheduleDays);
+      const mg = parseFloat(r?.wantedMg);
+      setSchedule({
+        days: Number.isFinite(days) && days > 0 ? days : DRIFT_HOURS / 24,
+        mg: Number.isFinite(mg) && mg > 0 ? mg : null,
+      });
+    } catch {
+      /* ignore */
+    }
     setNow(Date.now());
     setMounted(true);
     const id = setInterval(() => setNow(Date.now()), 60_000);
