@@ -28,9 +28,10 @@ type ReconState = {
   vialMg: string;
   bacMl: string;
   wantedMg: string;
+  scheduleDays: string;
 };
 
-const DEFAULTS: ReconState = { vialMg: "36", bacMl: "1.5", wantedMg: "6" };
+const DEFAULTS: ReconState = { vialMg: "36", bacMl: "1.5", wantedMg: "6", scheduleDays: "3.5" };
 
 
 function loadRecon(): ReconState {
@@ -39,7 +40,12 @@ function loadRecon(): ReconState {
     if (!raw) return DEFAULTS;
     const p = JSON.parse(raw);
     if (p && typeof p.vialMg === "string" && typeof p.bacMl === "string" && typeof p.wantedMg === "string") {
-      return p;
+      return {
+        vialMg: p.vialMg,
+        bacMl: p.bacMl,
+        wantedMg: p.wantedMg,
+        scheduleDays: typeof p.scheduleDays === "string" ? p.scheduleDays : DEFAULTS.scheduleDays,
+      };
     }
   } catch {
     /* ignore */
