@@ -78,7 +78,10 @@ function ShotCurve() {
 
   const [mounted, setMounted] = useState(false);
   const [scale, setScale] = useState<Scale>("1W");
-  const [nextDose, setNextDose] = useState<number | null>(null);
+  const [schedule, setSchedule] = useState<{ days: number; mg: number | null }>({
+    days: DRIFT_HOURS / 24,
+    mg: null,
+  });
 
 
 
