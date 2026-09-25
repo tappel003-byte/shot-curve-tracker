@@ -71,6 +71,8 @@ function ShotCurve() {
 
   const [mounted, setMounted] = useState(false);
   const [scale, setScale] = useState<Scale>("1W");
+  const [nextDose, setNextDose] = useState<number | null>(null);
+
 
 
   useEffect(() => {
