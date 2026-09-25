@@ -543,22 +543,41 @@ function DoseButton({
   );
 }
 
-function Chart({ shots, now, start }: { shots: Shot[]; now: number; start: StartLevel | null }) {
+type Scale = "1W" | "1M" | "3M" | "All";
+const SCALES: Scale[] = ["1W", "1M", "3M", "All"];
+const SCALE_DAYS: Record<Exclude<Scale, "All">, number> = { "1W": 7, "1M": 30, "3M": 90 };
+
+function Chart({
+  shots,
+  now,
+  start,
+  scale,
+  onScaleChange,
+}: {
+  shots: Shot[];
+  now: number;
+  start: StartLevel | null;
+  scale: Scale;
+  onScaleChange: (s: Scale) => void;
+}) {
   const W = 360;
   const H = 200;
-  const PAD = { top: 12, right: 10, bottom: 22, left: 34 };
+  const PAD = { top: 22, right: 10, bottom: 22, left: 34 };
 
   const model = useMemo(() => {
     const to = now + DRIFT_HOURS * 3_600_000;
     const earliest = Math.min(shots[0]?.at ?? now, start?.at ?? now);
-    const from = Math.min(earliest, now - 3 * 86_400_000);
+    const from =
+      scale === "All"
+        ? Math.min(earliest, now - 3 * 86_400_000)
+        : now - SCALE_DAYS[scale] * 86_400_000;
     const step = Math.max((to - from) / 240, 3_600_000);
     const pts = buildCurve(shots, from, to, step, start);
     const maxMg = Math.max(1, ...pts.map((p) => p.mg));
     const x = (t: number) => PAD.left + ((t - from) / (to - from)) * (W - PAD.left - PAD.right);
     const y = (mg: number) => PAD.top + (1 - mg / maxMg) * (H - PAD.top - PAD.bottom);
     return { pts, from, to, maxMg, x, y };
-  }, [shots, now, start]);
+  }, [shots, now, start, scale]);
 
   const { pts, from, to, maxMg, x, y } = model;
   const line = pts.map((p) => `${x(p.t).toFixed(1)},${y(p.mg).toFixed(1)}`).join(" ");
@@ -569,9 +588,31 @@ function Chart({ shots, now, start }: { shots: Shot[]; now: number; start: Start
   const tickStep = (to - from) / 4;
   for (let i = 0; i <= 4; i++) ticks.push(from + i * tickStep);
 
+  // dose badges: only on the closer scales, and only when marks aren't crowded
+  const visible = shots.filter((s) => s.at >= from && s.at <= to);
+  const showBadges =
+    (scale === "1W" || scale === "1M") &&
+    visible.every((s, i) => i === 0 || x(s.at) - x(visible[i - 1]!.at) > 34);
+
   return (
     <section className="rounded-xl border border-border bg-card p-3">
+      <div className="mb-2 flex gap-1">
+        {SCALES.map((s) => (
+          <button
+            key={s}
+            onClick={() => onScaleChange(s)}
+            className={`flex-1 rounded-full px-2 py-1 text-[11px] font-semibold transition-colors ${
+              s === scale
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted text-muted-foreground"
+            }`}
+          >
+            {s}
+          </button>
+        ))}
+      </div>
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="Estimated mg on board over time">
+
         {/* gridlines */}
         {[0.25, 0.5, 0.75, 1].map((f) => {
           const gy = y(maxMg * f);
