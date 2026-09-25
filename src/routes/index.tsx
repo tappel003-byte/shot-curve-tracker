@@ -241,8 +241,9 @@ function ShotCurve() {
   const driftMg = onBoard(shots, now + DRIFT_HOURS * 3_600_000, start);
 
   const lastShot = shots.length ? shots[shots.length - 1] : null;
-  const nextAt = lastShot ? lastShot.at + DRIFT_HOURS * 3_600_000 : null;
-  const nextMg = nextDose ?? lastShot?.mg ?? 6;
+  const intervalHours = schedule.days > 0 ? schedule.days * 24 : DRIFT_HOURS;
+  const nextAt = lastShot ? lastShot.at + intervalHours * 3_600_000 : null;
+  const nextMg = schedule.mg ?? lastShot?.mg ?? 6;
 
 
   return (
