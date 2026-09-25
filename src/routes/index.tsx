@@ -565,12 +565,13 @@ function Chart({
   const PAD = { top: 22, right: 10, bottom: 22, left: 34 };
 
   const model = useMemo(() => {
-    const to = now + DRIFT_HOURS * 3_600_000;
-    const earliest = Math.min(shots[0]?.at ?? now, start?.at ?? now);
-    const from =
+    const anchor = Math.min(shots[0]?.at ?? now, start?.at ?? now, now);
+    const from = anchor - 12 * 3_600_000;
+    const minTo = now + DRIFT_HOURS * 3_600_000;
+    const to =
       scale === "All"
-        ? Math.min(earliest, now - 3 * 86_400_000)
-        : now - SCALE_DAYS[scale] * 86_400_000;
+        ? Math.max(minTo, from + 14 * 86_400_000)
+        : Math.max(minTo, from + SCALE_DAYS[scale] * 86_400_000);
     const step = Math.max((to - from) / 240, 3_600_000);
     const pts = buildCurve(shots, from, to, step, start);
     const maxMg = Math.max(1, ...pts.map((p) => p.mg));
@@ -578,6 +579,7 @@ function Chart({
     const y = (mg: number) => PAD.top + (1 - mg / maxMg) * (H - PAD.top - PAD.bottom);
     return { pts, from, to, maxMg, x, y };
   }, [shots, now, start, scale]);
+
 
   const { pts, from, to, maxMg, x, y } = model;
   const line = pts.map((p) => `${x(p.t).toFixed(1)},${y(p.mg).toFixed(1)}`).join(" ");
