@@ -74,6 +74,7 @@ function ShotCurve() {
 
   const [importError, setImportError] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
+  const formRef = useRef<HTMLElement>(null);
   const [showStartForm, setShowStartForm] = useState(false);
 
   const [mounted, setMounted] = useState(false);
