@@ -260,6 +260,24 @@ function ShotCurve() {
   const nextAt = lastShot ? lastShot.at + intervalHours * 3_600_000 : null;
   const nextMg = schedule.mg ?? lastShot?.mg ?? 6;
 
+  // pre-fill the log form with the scheduled shot so the time can be adjusted
+  // (e.g. took it at the scheduled time but logging later)
+  const prefillNext = () => {
+    if (nextAt === null) return;
+    const v = toLocalInputValue(nextAt);
+    setDate(v.date);
+    setTime(v.time);
+    if (nextMg === 6 || nextMg === 12) {
+      setDoseChoice(String(nextMg) as "6" | "12");
+      setCustomMg("");
+    } else {
+      setDoseChoice("custom");
+      setCustomMg(String(nextMg));
+    }
+    setEditingId(null);
+    formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
 
   return (
     <div className="mx-auto min-h-screen max-w-md px-4 pb-16 pt-6">
