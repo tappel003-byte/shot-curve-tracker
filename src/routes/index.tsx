@@ -74,6 +74,7 @@ function ShotCurve() {
 
   const [importError, setImportError] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
+  const formRef = useRef<HTMLElement>(null);
   const [showStartForm, setShowStartForm] = useState(false);
 
   const [mounted, setMounted] = useState(false);
@@ -259,6 +260,24 @@ function ShotCurve() {
   const nextAt = lastShot ? lastShot.at + intervalHours * 3_600_000 : null;
   const nextMg = schedule.mg ?? lastShot?.mg ?? 6;
 
+  // pre-fill the log form with the scheduled shot so the time can be adjusted
+  // (e.g. took it at the scheduled time but logging later)
+  const prefillNext = () => {
+    if (nextAt === null) return;
+    const v = toLocalInputValue(nextAt);
+    setDate(v.date);
+    setTime(v.time);
+    if (nextMg === 6 || nextMg === 12) {
+      setDoseChoice(String(nextMg) as "6" | "12");
+      setCustomMg("");
+    } else {
+      setDoseChoice("custom");
+      setCustomMg(String(nextMg));
+    }
+    setEditingId(null);
+    formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
 
   return (
     <div className="mx-auto min-h-screen max-w-md px-4 pb-16 pt-6">
@@ -293,9 +312,13 @@ function ShotCurve() {
         </div>
       </section>
 
-      {/* Next shot pill */}
+      {/* Next shot pill — tap to pre-fill the log form with the scheduled shot */}
       {mounted && nextAt !== null && (
-        <div className="mb-6 flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-xs">
+        <button
+          type="button"
+          onClick={prefillNext}
+          className="mb-6 flex w-full items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-left text-xs"
+        >
           <span className="font-semibold uppercase tracking-wide text-muted-foreground">Next</span>
           <span className="font-medium text-foreground">
             {new Date(nextAt).toLocaleString(undefined, {
@@ -309,7 +332,10 @@ function ShotCurve() {
           <span className="ml-auto shrink-0 font-semibold text-primary">
             {fmtMg(nextMg)} mg · {unitsFor(nextMg)} u
           </span>
-        </div>
+          <span className="shrink-0 rounded-full border border-border px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+            Log
+          </span>
+        </button>
       )}
 
 
@@ -321,7 +347,7 @@ function ShotCurve() {
 
 
       {/* Log form */}
-      <section className="mt-6 rounded-xl border border-border bg-card p-4">
+      <section ref={formRef} className="mt-6 rounded-xl border border-border bg-card p-4">
         <h2 className="mb-3 text-sm font-semibold text-foreground">
           {editingId ? "Edit shot" : "Log a shot"}
         </h2>
