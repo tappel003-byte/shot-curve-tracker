@@ -312,9 +312,13 @@ function ShotCurve() {
         </div>
       </section>
 
-      {/* Next shot pill */}
+      {/* Next shot pill — tap to pre-fill the log form with the scheduled shot */}
       {mounted && nextAt !== null && (
-        <div className="mb-6 flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-xs">
+        <button
+          type="button"
+          onClick={prefillNext}
+          className="mb-6 flex w-full items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-left text-xs"
+        >
           <span className="font-semibold uppercase tracking-wide text-muted-foreground">Next</span>
           <span className="font-medium text-foreground">
             {new Date(nextAt).toLocaleString(undefined, {
@@ -328,7 +332,10 @@ function ShotCurve() {
           <span className="ml-auto shrink-0 font-semibold text-primary">
             {fmtMg(nextMg)} mg · {unitsFor(nextMg)} u
           </span>
-        </div>
+          <span className="shrink-0 rounded-full border border-border px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+            Log
+          </span>
+        </button>
       )}
 
 
