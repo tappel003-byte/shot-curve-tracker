@@ -347,7 +347,7 @@ function ShotCurve() {
 
 
       {/* Log form */}
-      <section className="mt-6 rounded-xl border border-border bg-card p-4">
+      <section ref={formRef} className="mt-6 rounded-xl border border-border bg-card p-4">
         <h2 className="mb-3 text-sm font-semibold text-foreground">
           {editingId ? "Edit shot" : "Log a shot"}
         </h2>
