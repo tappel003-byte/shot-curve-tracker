@@ -753,7 +753,7 @@ function Chart({
           const label = `${fmtMg(s.mg)} mg`;
           const bw = label.length * 5 + 8;
           const bx = Math.min(Math.max(cx - bw / 2, PAD.left), W - PAD.right - bw);
-          const by = Math.max(cy - 20, 2);
+          const by = Math.max(cy - 26, 2);
           return (
             <g key={s.id}>
               <line
@@ -767,12 +767,20 @@ function Chart({
               <circle cx={cx} cy={cy} r="3.5" className="fill-primary" />
               {showBadges && (
                 <g>
-                  <rect x={bx} y={by} width={bw} height="13" rx="6.5" className="fill-primary" />
+                  <rect
+                    x={bx}
+                    y={by}
+                    width={bw}
+                    height="13"
+                    rx="6.5"
+                    className="fill-card stroke-primary"
+                    strokeWidth="1"
+                  />
                   <text
                     x={bx + bw / 2}
                     y={by + 9.5}
                     textAnchor="middle"
-                    className="fill-primary-foreground"
+                    className="fill-foreground"
                     fontSize="8.5"
                     fontWeight="600"
                   >
