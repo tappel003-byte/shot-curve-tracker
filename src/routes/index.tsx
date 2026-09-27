@@ -216,6 +216,7 @@ function ShotCurve() {
 
   const importJson = async (file: File) => {
     setImportError("");
+    setImportOk("");
     try {
       const parsed = JSON.parse(await file.text());
       const rawShots = Array.isArray(parsed) ? parsed : parsed?.shots;
@@ -227,6 +228,11 @@ function ShotCurve() {
         }
       }
       persist(clean);
+      setImportOk(
+        clean.length
+          ? `Imported ${clean.length} shot${clean.length === 1 ? "" : "s"}.`
+          : "File read, but it had no shots in it."
+      );
       const s = parsed?.start;
       if (s && typeof s.at === "number" && typeof s.mg === "number" && s.mg > 0) {
         const next = { at: s.at, mg: s.mg };
