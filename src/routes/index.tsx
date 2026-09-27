@@ -73,6 +73,7 @@ function ShotCurve() {
   const [startTime, setStartTime] = useState(initial.time);
 
   const [importError, setImportError] = useState("");
+  const [importOk, setImportOk] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLElement>(null);
   const [showStartForm, setShowStartForm] = useState(false);
@@ -477,6 +478,7 @@ function ShotCurve() {
           />
         </div>
         {importError && <p className="mt-2 text-xs text-destructive">{importError}</p>}
+        {importOk && <p className="mt-2 text-xs text-primary">{importOk}</p>}
       </section>
 
       {/* Starting level */}
