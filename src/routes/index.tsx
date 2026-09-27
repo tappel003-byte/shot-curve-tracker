@@ -73,6 +73,7 @@ function ShotCurve() {
   const [startTime, setStartTime] = useState(initial.time);
 
   const [importError, setImportError] = useState("");
+  const [importOk, setImportOk] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLElement>(null);
   const [showStartForm, setShowStartForm] = useState(false);
@@ -216,6 +217,7 @@ function ShotCurve() {
 
   const importJson = async (file: File) => {
     setImportError("");
+    setImportOk("");
     try {
       const parsed = JSON.parse(await file.text());
       const rawShots = Array.isArray(parsed) ? parsed : parsed?.shots;
@@ -227,6 +229,11 @@ function ShotCurve() {
         }
       }
       persist(clean);
+      setImportOk(
+        clean.length
+          ? `Imported ${clean.length} shot${clean.length === 1 ? "" : "s"}.`
+          : "File read, but it had no shots in it."
+      );
       const s = parsed?.start;
       if (s && typeof s.at === "number" && typeof s.mg === "number" && s.mg > 0) {
         const next = { at: s.at, mg: s.mg };
@@ -471,6 +478,7 @@ function ShotCurve() {
           />
         </div>
         {importError && <p className="mt-2 text-xs text-destructive">{importError}</p>}
+        {importOk && <p className="mt-2 text-xs text-primary">{importOk}</p>}
       </section>
 
       {/* Starting level */}
