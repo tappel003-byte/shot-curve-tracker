@@ -124,10 +124,17 @@ function ShotCurve() {
     } catch {
       /* ignore */
     }
-    setNow(Date.now());
+    const syncNow = () => setNow(Date.now());
+    syncNow();
     setMounted(true);
-    const id = setInterval(() => setNow(Date.now()), 60_000);
-    return () => clearInterval(id);
+    const id = setInterval(syncNow, 15_000);
+    window.addEventListener("focus", syncNow);
+    document.addEventListener("visibilitychange", syncNow);
+    return () => {
+      clearInterval(id);
+      window.removeEventListener("focus", syncNow);
+      document.removeEventListener("visibilitychange", syncNow);
+    };
   }, []);
 
   const persist = (next: Shot[]) => {
@@ -640,14 +647,28 @@ function Chart({
 
   const model = useMemo(() => {
     const anchor = Math.min(shots[0]?.at ?? now, start?.at ?? now, now);
-    const from = anchor - 12 * 3_600_000;
+    // Start exactly at the first known level/shot. Padding before it creates a
+    // false zero-level segment and makes the first date appear a day early.
+    const from = anchor;
     const minTo = now + DRIFT_HOURS * 3_600_000;
     const to =
       scale === "All"
         ? Math.max(minTo, from + 14 * 86_400_000)
         : Math.max(minTo, from + SCALE_DAYS[scale] * 86_400_000);
     const step = Math.max((to - from) / 240, 3_600_000);
-    const pts = buildCurve(shots, from, to, step, start);
+    const sampled = buildCurve(shots, from, to, step, start);
+    // Include every injection and 24-hour peak exactly. This keeps the drawn
+    // line faithful to the formula instead of letting hourly sampling place a
+    // corner slightly before or after the real event.
+    const criticalTimes = [
+      ...shots.flatMap((shot) => [shot.at, shot.at + 24 * 3_600_000]),
+      ...(start ? [start.at] : []),
+      now,
+    ].filter((t) => t >= from && t <= to);
+    const times = [...new Set([...sampled.map((point) => point.t), ...criticalTimes])].sort(
+      (a, b) => a - b,
+    );
+    const pts = times.map((t) => ({ t, mg: onBoard(shots, t, start) }));
     const maxMg = Math.max(1, ...pts.map((p) => p.mg));
     const x = (t: number) => PAD.left + ((t - from) / (to - from)) * (W - PAD.left - PAD.right);
     const y = (mg: number) => PAD.top + (1 - mg / maxMg) * (H - PAD.top - PAD.bottom);
@@ -668,7 +689,10 @@ function Chart({
   const visible = shots.filter((s) => s.at >= from && s.at <= to);
   const showBadges =
     (scale === "1W" || scale === "1M") &&
-    visible.every((s, i) => i === 0 || x(s.at) - x(visible[i - 1]!.at) > 34);
+    visible.every((s, i) => {
+      const previous = visible[i - 1];
+      return !previous || x(s.at) - x(previous.at) > 34;
+    });
 
   return (
     <section className="rounded-xl border border-border bg-card p-3">
@@ -713,7 +737,14 @@ function Chart({
         />
         {/* curve */}
         {(shots.length > 0 || start) && (
-          <polyline points={line} fill="none" className="stroke-primary" strokeWidth="2.5" strokeLinejoin="round" />
+          <polyline
+            points={line}
+            fill="none"
+            className="stroke-primary"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
         )}
         {/* shot marks */}
         {visible.map((s) => {
