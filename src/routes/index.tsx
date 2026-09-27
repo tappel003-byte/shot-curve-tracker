@@ -88,6 +88,20 @@ function ShotCurve() {
 
 
   useEffect(() => {
+    // one-time restore of the history lost when the home-screen shortcut was deleted
+    const RESTORE_KEY = "shotcurve.restore.v1";
+    if (!localStorage.getItem(RESTORE_KEY)) {
+      localStorage.setItem(RESTORE_KEY, "done");
+      if (loadShots().length === 0 && !loadStart()) {
+        const t1 = new Date("2026-09-21T07:00").getTime();
+        const t2 = new Date("2026-09-24T18:00").getTime();
+        saveShots([
+          { id: newId(), at: t1, mg: 12 },
+          { id: newId(), at: t2, mg: 6 },
+        ]);
+        saveStart({ at: t1, mg: 4 });
+      }
+    }
     setShots(loadShots());
     const s = loadStart();
     setStart(s);
@@ -98,6 +112,7 @@ function ShotCurve() {
       setStartDate(v.date);
       setStartTime(v.time);
     }
+
     try {
       const r = JSON.parse(localStorage.getItem("shotcurve.recon.v1") ?? "null");
       const days = parseFloat(r?.scheduleDays);
