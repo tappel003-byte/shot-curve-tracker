@@ -448,6 +448,21 @@ function ShotCurve() {
           </label>
         )}
 
+        <div className="mt-4 space-y-2.5">
+          <div>
+            <span className="mb-1 block text-xs text-muted-foreground">Side</span>
+            <SiteChips options={SIDES} value={siteSide} onPick={setSiteSide} />
+          </div>
+          <div>
+            <span className="mb-1 block text-xs text-muted-foreground">Area</span>
+            <SiteChips options={AREAS} value={siteArea} onPick={setSiteArea} />
+          </div>
+          <div>
+            <span className="mb-1 block text-xs text-muted-foreground">Zone</span>
+            <SiteChips options={ZONES} value={siteZone} onPick={setSiteZone} />
+          </div>
+        </div>
+
         <div className="mt-4 flex gap-2">
           <button
             onClick={submit}
@@ -491,6 +506,7 @@ function ShotCurve() {
                       hour: "numeric",
                       minute: "2-digit",
                     })}
+                    {s.site ? ` · ${s.site}` : ""}
                   </div>
                 </div>
                 <div className="flex gap-2">
