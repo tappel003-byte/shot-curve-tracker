@@ -54,6 +54,39 @@ function unitsFor(mg: number): string {
 }
 
 
+const SIDES = ["Left", "Right"];
+const AREAS = ["Stomach", "Thigh", "Arm"];
+const ZONES = ["Upper", "Middle", "Lower"];
+
+function SiteChips({
+  options,
+  value,
+  onPick,
+}: {
+  options: string[];
+  value: string | null;
+  onPick: (v: string | null) => void;
+}) {
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {options.map((o) => (
+        <button
+          key={o}
+          type="button"
+          onClick={() => onPick(value === o ? null : o)}
+          className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+            value === o
+              ? "border-primary bg-primary text-primary-foreground"
+              : "bg-background text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          {o}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function ShotCurve() {
   const [shots, setShots] = useState<Shot[]>([]);
   const [start, setStart] = useState<StartLevel | null>(null);
@@ -66,6 +99,9 @@ function ShotCurve() {
   const [time, setTime] = useState(initial.time);
   const [doseChoice, setDoseChoice] = useState<"6" | "12" | "custom">("6");
   const [customMg, setCustomMg] = useState("");
+  const [siteSide, setSiteSide] = useState<string | null>(null);
+  const [siteArea, setSiteArea] = useState<string | null>(null);
+  const [siteZone, setSiteZone] = useState<string | null>(null);
 
   // starting level form state
   const [startMg, setStartMg] = useState("");
