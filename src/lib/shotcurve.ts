@@ -5,7 +5,7 @@ export type Shot = {
   /** dose in mg */
   mg: number;
   /** injection site, e.g. "Left · Stomach · Upper" */
-  site?: string;
+  site?: string | undefined;
 };
 
 export const HALF_LIFE_HOURS = 120; // 5 days
