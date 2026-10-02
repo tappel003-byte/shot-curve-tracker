@@ -221,6 +221,9 @@ function ShotCurve() {
     setTime(v.time);
     setDoseChoice("6");
     setCustomMg("");
+    setSiteSide(null);
+    setSiteArea(null);
+    setSiteZone(null);
     setEditingId(null);
   };
 
@@ -231,10 +234,12 @@ function ShotCurve() {
     if (!formValid) return;
     const at = new Date(`${date}T${time}`).getTime();
     if (!Number.isFinite(at)) return;
+    const siteParts = [siteSide, siteArea, siteZone].filter(Boolean);
+    const site = siteParts.length ? siteParts.join(" · ") : undefined;
     if (editingId) {
-      persist(shots.map((s) => (s.id === editingId ? { ...s, at, mg } : s)));
+      persist(shots.map((s) => (s.id === editingId ? { ...s, at, mg, site } : s)));
     } else {
-      persist([...shots, { id: newId(), at, mg }]);
+      persist([...shots, { id: newId(), at, mg, site }]);
     }
     resetForm();
   };
@@ -250,6 +255,10 @@ function ShotCurve() {
       setDoseChoice("custom");
       setCustomMg(String(s.mg));
     }
+    const parts = s.site?.split(" · ") ?? [];
+    setSiteSide(parts[0] ?? null);
+    setSiteArea(parts[1] ?? null);
+    setSiteZone(parts[2] ?? null);
     setEditingId(s.id);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
