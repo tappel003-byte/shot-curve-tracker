@@ -229,6 +229,7 @@ function ShotCurve() {
 
   const mg = doseChoice === "custom" ? parseFloat(customMg) : parseFloat(doseChoice);
   const formValid = !!date && !!time && Number.isFinite(mg) && mg > 0;
+  const lastSite = [...shots].reverse().find((s) => s.site)?.site;
 
   const submit = () => {
     if (!formValid) return;
@@ -449,6 +450,11 @@ function ShotCurve() {
         )}
 
         <div className="mt-4 space-y-2.5">
+          {lastSite && (
+            <p className="text-xs text-muted-foreground">
+              Last site: <span className="font-medium text-foreground">{lastSite}</span>
+            </p>
+          )}
           <div>
             <span className="mb-1 block text-xs text-muted-foreground">Side</span>
             <SiteChips options={SIDES} value={siteSide} onPick={setSiteSide} />
