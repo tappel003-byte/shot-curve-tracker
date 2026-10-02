@@ -4,6 +4,8 @@ export type Shot = {
   at: number;
   /** dose in mg */
   mg: number;
+  /** injection site, e.g. "Left · Stomach · Upper" */
+  site?: string | undefined;
 };
 
 export const HALF_LIFE_HOURS = 120; // 5 days
@@ -86,7 +88,12 @@ export function loadShots(): Shot[] {
     return parsed
       .filter(
         (s): s is Shot =>
-          s && typeof s.id === "string" && typeof s.at === "number" && typeof s.mg === "number" && s.mg > 0,
+          s &&
+          typeof s.id === "string" &&
+          typeof s.at === "number" &&
+          typeof s.mg === "number" &&
+          s.mg > 0 &&
+          (s.site === undefined || typeof s.site === "string"),
       )
       .sort((a, b) => a.at - b.at);
   } catch {

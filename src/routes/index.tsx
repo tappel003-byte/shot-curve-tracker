@@ -54,6 +54,39 @@ function unitsFor(mg: number): string {
 }
 
 
+const SIDES = ["Left", "Right"];
+const AREAS = ["Stomach", "Thigh", "Arm"];
+const ZONES = ["Upper", "Middle", "Lower"];
+
+function SiteChips({
+  options,
+  value,
+  onPick,
+}: {
+  options: string[];
+  value: string | null;
+  onPick: (v: string | null) => void;
+}) {
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {options.map((o) => (
+        <button
+          key={o}
+          type="button"
+          onClick={() => onPick(value === o ? null : o)}
+          className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+            value === o
+              ? "border-primary bg-primary text-primary-foreground"
+              : "bg-background text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          {o}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function ShotCurve() {
   const [shots, setShots] = useState<Shot[]>([]);
   const [start, setStart] = useState<StartLevel | null>(null);
@@ -66,6 +99,9 @@ function ShotCurve() {
   const [time, setTime] = useState(initial.time);
   const [doseChoice, setDoseChoice] = useState<"6" | "12" | "custom">("6");
   const [customMg, setCustomMg] = useState("");
+  const [siteSide, setSiteSide] = useState<string | null>(null);
+  const [siteArea, setSiteArea] = useState<string | null>(null);
+  const [siteZone, setSiteZone] = useState<string | null>(null);
 
   // starting level form state
   const [startMg, setStartMg] = useState("");
@@ -185,20 +221,26 @@ function ShotCurve() {
     setTime(v.time);
     setDoseChoice("6");
     setCustomMg("");
+    setSiteSide(null);
+    setSiteArea(null);
+    setSiteZone(null);
     setEditingId(null);
   };
 
   const mg = doseChoice === "custom" ? parseFloat(customMg) : parseFloat(doseChoice);
   const formValid = !!date && !!time && Number.isFinite(mg) && mg > 0;
+  const lastSite = [...shots].reverse().find((s) => s.site)?.site;
 
   const submit = () => {
     if (!formValid) return;
     const at = new Date(`${date}T${time}`).getTime();
     if (!Number.isFinite(at)) return;
+    const siteParts = [siteSide, siteArea, siteZone].filter(Boolean);
+    const site = siteParts.length ? siteParts.join(" · ") : undefined;
     if (editingId) {
-      persist(shots.map((s) => (s.id === editingId ? { ...s, at, mg } : s)));
+      persist(shots.map((s) => (s.id === editingId ? { ...s, at, mg, site } : s)));
     } else {
-      persist([...shots, { id: newId(), at, mg }]);
+      persist([...shots, { id: newId(), at, mg, site }]);
     }
     resetForm();
   };
@@ -214,6 +256,10 @@ function ShotCurve() {
       setDoseChoice("custom");
       setCustomMg(String(s.mg));
     }
+    const parts = s.site?.split(" · ") ?? [];
+    setSiteSide(parts[0] ?? null);
+    setSiteArea(parts[1] ?? null);
+    setSiteZone(parts[2] ?? null);
     setEditingId(s.id);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -403,6 +449,26 @@ function ShotCurve() {
           </label>
         )}
 
+        <div className="mt-4 space-y-2.5">
+          {lastSite && (
+            <p className="text-xs text-muted-foreground">
+              Last site: <span className="font-medium text-foreground">{lastSite}</span>
+            </p>
+          )}
+          <div>
+            <span className="mb-1 block text-xs text-muted-foreground">Side</span>
+            <SiteChips options={SIDES} value={siteSide} onPick={setSiteSide} />
+          </div>
+          <div>
+            <span className="mb-1 block text-xs text-muted-foreground">Area</span>
+            <SiteChips options={AREAS} value={siteArea} onPick={setSiteArea} />
+          </div>
+          <div>
+            <span className="mb-1 block text-xs text-muted-foreground">Zone</span>
+            <SiteChips options={ZONES} value={siteZone} onPick={setSiteZone} />
+          </div>
+        </div>
+
         <div className="mt-4 flex gap-2">
           <button
             onClick={submit}
@@ -446,6 +512,7 @@ function ShotCurve() {
                       hour: "numeric",
                       minute: "2-digit",
                     })}
+                    {s.site ? ` · ${s.site}` : ""}
                   </div>
                 </div>
                 <div className="flex gap-2">
