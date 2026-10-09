@@ -695,6 +695,36 @@ type Scale = "1W" | "1M" | "3M" | "All";
 const SCALES: Scale[] = ["1W", "1M", "3M", "All"];
 const SCALE_DAYS: Record<Exclude<Scale, "All">, number> = { "1W": 7, "1M": 30, "3M": 90 };
 
+type SvgPoint = { x: number; y: number };
+
+/** Monotone cubic interpolation keeps the sampled curve smooth without overshooting its values. */
+function monotonePath(points: SvgPoint[]): string {
+  if (points.length === 0) return "";
+  if (points.length === 1) return `M ${points[0].x.toFixed(2)} ${points[0].y.toFixed(2)}`;
+
+  const slopes = points.slice(0, -1).map((point, index) => {
+    const next = points[index + 1];
+    return (next.y - point.y) / (next.x - point.x);
+  });
+  const tangents = points.map((_, index) => {
+    if (index === 0) return slopes[0];
+    if (index === points.length - 1) return slopes[slopes.length - 1];
+    const before = slopes[index - 1];
+    const after = slopes[index];
+    if (before === 0 || after === 0 || Math.sign(before) !== Math.sign(after)) return 0;
+    return (2 * before * after) / (before + after);
+  });
+
+  let path = `M ${points[0].x.toFixed(2)} ${points[0].y.toFixed(2)}`;
+  for (let index = 0; index < points.length - 1; index++) {
+    const point = points[index];
+    const next = points[index + 1];
+    const third = (next.x - point.x) / 3;
+    path += ` C ${(point.x + third).toFixed(2)} ${(point.y + tangents[index] * third).toFixed(2)}, ${(next.x - third).toFixed(2)} ${(next.y - tangents[index + 1] * third).toFixed(2)}, ${next.x.toFixed(2)} ${next.y.toFixed(2)}`;
+  }
+  return path;
+}
+
 function Chart({
   shots,
   now,
@@ -722,20 +752,7 @@ function Chart({
       scale === "All"
         ? Math.max(minTo, from + 14 * 86_400_000)
         : Math.max(minTo, from + SCALE_DAYS[scale] * 86_400_000);
-    const step = Math.max((to - from) / 240, 3_600_000);
-    const sampled = buildCurve(shots, from, to, step, start);
-    // Include every injection and 24-hour peak exactly. This keeps the drawn
-    // line faithful to the formula instead of letting hourly sampling place a
-    // corner slightly before or after the real event.
-    const criticalTimes = [
-      ...shots.flatMap((shot) => [shot.at, shot.at + 24 * 3_600_000]),
-      ...(start ? [start.at] : []),
-      now,
-    ].filter((t) => t >= from && t <= to);
-    const times = [...new Set([...sampled.map((point) => point.t), ...criticalTimes])].sort(
-      (a, b) => a - b,
-    );
-    const pts = times.map((t) => ({ t, mg: onBoard(shots, t, start) }));
+    const pts = buildCurve(shots, from, to, 2 * 3_600_000, start);
     const maxMg = Math.max(1, ...pts.map((p) => p.mg));
     const x = (t: number) => PAD.left + ((t - from) / (to - from)) * (W - PAD.left - PAD.right);
     const y = (mg: number) => PAD.top + (1 - mg / maxMg) * (H - PAD.top - PAD.bottom);
@@ -744,7 +761,7 @@ function Chart({
 
 
   const { pts, from, to, maxMg, x, y } = model;
-  const line = pts.map((p) => `${x(p.t).toFixed(1)},${y(p.mg).toFixed(1)}`).join(" ");
+  const line = monotonePath(pts.map((point) => ({ x: x(point.t), y: y(point.mg) })));
   const nowY = y(onBoard(shots, now, start));
 
   // ~5 date ticks
@@ -804,8 +821,8 @@ function Chart({
         />
         {/* curve */}
         {(shots.length > 0 || start) && (
-          <polyline
-            points={line}
+          <path
+            d={line}
             fill="none"
             className="stroke-primary"
             strokeWidth="2.5"
