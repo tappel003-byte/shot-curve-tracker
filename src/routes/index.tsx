@@ -697,26 +697,41 @@ const SCALE_DAYS: Record<Exclude<Scale, "All">, number> = { "1W": 7, "1M": 30, "
 
 type SvgPoint = { x: number; y: number; t: number };
 
-/** Display-only Catmull-Rom spline through every two-hour sample; dose math untouched. */
+/**
+ * Display-only corner rounding: draws the two-hour samples as straight
+ * segments and fillets each vertex with a quadratic arc that stays inside
+ * the corner, so peaks round off without dips, overshoot, or wobble.
+ * Dose math and saved data are untouched.
+ */
 function smoothPath(samples: SvgPoint[]): string {
   const first = samples[0];
   if (!first) return "";
   if (samples.length === 1) return `M ${first.x.toFixed(2)} ${first.y.toFixed(2)}`;
 
-  // Uniformly spaced samples: tangent at each interior point parallels the
-  // chord between its neighbors, so peaks round naturally with no wobble.
+  const MAX_FILLET = 14; // px of corner rounding at most
   let path = `M ${first.x.toFixed(2)} ${first.y.toFixed(2)}`;
-  for (let index = 0; index < samples.length - 1; index++) {
-    const p0 = samples[index - 1] ?? samples[index];
-    const p1 = samples[index];
-    const p2 = samples[index + 1];
-    const p3 = samples[index + 2] ?? p2;
-    if (!p0 || !p1 || !p2 || !p3) continue;
-    const c1x = p1.x + (p2.x - p0.x) / 6;
-    const c1y = p1.y + (p2.y - p0.y) / 6;
-    const c2x = p2.x - (p3.x - p1.x) / 6;
-    const c2y = p2.y - (p3.y - p1.y) / 6;
-    path += ` C ${c1x.toFixed(2)} ${c1y.toFixed(2)}, ${c2x.toFixed(2)} ${c2y.toFixed(2)}, ${p2.x.toFixed(2)} ${p2.y.toFixed(2)}`;
+  let cursor = first;
+  for (let index = 1; index < samples.length; index++) {
+    const vertex = samples[index];
+    const next = samples[index + 1];
+    if (!vertex) continue;
+    if (!next) {
+      path += ` L ${vertex.x.toFixed(2)} ${vertex.y.toFixed(2)}`;
+      continue;
+    }
+    const inDx = vertex.x - cursor.x;
+    const inDy = vertex.y - cursor.y;
+    const outDx = next.x - vertex.x;
+    const outDy = next.y - vertex.y;
+    const inLen = Math.hypot(inDx, inDy);
+    const outLen = Math.hypot(outDx, outDy);
+    if (inLen === 0 || outLen === 0) continue;
+    const trim = Math.min(MAX_FILLET, inLen * 0.45, outLen * 0.45);
+    const entry = { x: vertex.x - (inDx / inLen) * trim, y: vertex.y - (inDy / inLen) * trim };
+    const exit = { x: vertex.x + (outDx / outLen) * trim, y: vertex.y + (outDy / outLen) * trim };
+    path += ` L ${entry.x.toFixed(2)} ${entry.y.toFixed(2)}`;
+    path += ` Q ${vertex.x.toFixed(2)} ${vertex.y.toFixed(2)}, ${exit.x.toFixed(2)} ${exit.y.toFixed(2)}`;
+    cursor = exit;
   }
   return path;
 }
