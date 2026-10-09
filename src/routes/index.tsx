@@ -697,51 +697,34 @@ const SCALE_DAYS: Record<Exclude<Scale, "All">, number> = { "1W": 7, "1M": 30, "
 
 type SvgPoint = { x: number; y: number; t: number };
 
-/** Display-only rounded turns; leave the underlying two-hour dose samples intact. */
+/**
+ * Display-only smoothing: the two-hour dose samples get a gentle binomial
+ * blur (two [1,2,1]/4 passes, ~8h effective window) so the sharp 24h peak
+ * kink rounds off. The blur is a weighted average of neighbors, so it can
+ * never overshoot, dip, or add wobble — it only softens corners. Shot
+ * markers, big numbers, dose math, and saved data all use the exact
+ * unsmoothed values.
+ */
 function smoothPath(samples: SvgPoint[]): string {
-  // Two-hour handles are too short to visibly round a 24-hour peak. Give each
-  // turn a twelve-hour shoulder, retaining the extremum itself and endpoints.
-  const turns = samples.filter((point, index) => {
-    const before = samples[index - 1];
-    const after = samples[index + 1];
-    return before && after && (point.y - before.y) * (after.y - point.y) < 0;
-  });
-  const points = samples.filter((point, index) =>
-    index === 0 || index === samples.length - 1 || turns.includes(point) ||
-    turns.every((turn) => Math.abs(point.t - turn.t) >= 12 * 3_600_000),
-  );
-  const first = points[0];
+  const first = samples[0];
   if (!first) return "";
-  if (points.length === 1) return `M ${first.x.toFixed(2)} ${first.y.toFixed(2)}`;
+  if (samples.length === 1) return `M ${first.x.toFixed(2)} ${first.y.toFixed(2)}`;
 
-  const slopes = points.slice(1).map((point, index) => {
-    const previous = points[index];
-    return previous ? (point.y - previous.y) / (point.x - previous.x) : 0;
-  });
-  const tangents = points.map((_, index) => {
-    const before = slopes[index - 1];
-    const after = slopes[index];
-    if (before === undefined) return after ?? 0;
-    if (after === undefined) return before;
-    // Horizontal tangent at every peak/trough; harmonic mean avoids overshoot.
-    if (before * after <= 0) return 0;
-    return 2 * before * after / (before + after);
-  });
-  let path = `M ${first.x.toFixed(2)} ${first.y.toFixed(2)}`;
-  for (let index = 0; index < points.length - 1; index++) {
-    const point = points[index];
-    const next = points[index + 1];
-    if (!point || !next) continue;
-    const handle = (next.x - point.x) / 3;
-    const firstControl = {
-      x: point.x + handle,
-      y: point.y + handle * (tangents[index] ?? 0),
-    };
-    const secondControl = {
-      x: next.x - handle,
-      y: next.y - handle * (tangents[index + 1] ?? 0),
-    };
-    path += ` C ${firstControl.x.toFixed(2)} ${firstControl.y.toFixed(2)}, ${secondControl.x.toFixed(2)} ${secondControl.y.toFixed(2)}, ${next.x.toFixed(2)} ${next.y.toFixed(2)}`;
+  let ys = samples.map((s) => s.y);
+  for (let pass = 0; pass < 2; pass++) {
+    ys = ys.map((y, index) => {
+      const before = ys[index - 1];
+      const after = ys[index + 1];
+      if (before === undefined || after === undefined) return y;
+      return (before + 2 * y + after) / 4;
+    });
+  }
+
+  let path = `M ${first.x.toFixed(2)} ${(ys[0] ?? first.y).toFixed(2)}`;
+  for (let index = 1; index < samples.length; index++) {
+    const point = samples[index];
+    if (!point) continue;
+    path += ` L ${point.x.toFixed(2)} ${(ys[index] ?? point.y).toFixed(2)}`;
   }
   return path;
 }
