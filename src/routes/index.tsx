@@ -695,6 +695,34 @@ type Scale = "1W" | "1M" | "3M" | "All";
 const SCALES: Scale[] = ["1W", "1M", "3M", "All"];
 const SCALE_DAYS: Record<Exclude<Scale, "All">, number> = { "1W": 7, "1M": 30, "3M": 90 };
 
+type SvgPoint = { x: number; y: number };
+
+/** Cardinal spline through the two-hour samples, converted to cubic SVG segments. */
+function smoothPath(points: SvgPoint[]): string {
+  const first = points[0];
+  if (!first) return "";
+  if (points.length === 1) return `M ${first.x.toFixed(2)} ${first.y.toFixed(2)}`;
+
+  let path = `M ${first.x.toFixed(2)} ${first.y.toFixed(2)}`;
+  for (let index = 0; index < points.length - 1; index++) {
+    const previous = points[index - 1] ?? points[index];
+    const point = points[index];
+    const next = points[index + 1];
+    const following = points[index + 2] ?? next;
+    if (!previous || !point || !next || !following) continue;
+    const firstControl = {
+      x: point.x + (next.x - previous.x) / 6,
+      y: point.y + (next.y - previous.y) / 6,
+    };
+    const secondControl = {
+      x: next.x - (following.x - point.x) / 6,
+      y: next.y - (following.y - point.y) / 6,
+    };
+    path += ` C ${firstControl.x.toFixed(2)} ${firstControl.y.toFixed(2)}, ${secondControl.x.toFixed(2)} ${secondControl.y.toFixed(2)}, ${next.x.toFixed(2)} ${next.y.toFixed(2)}`;
+  }
+  return path;
+}
+
 function Chart({
   shots,
   now,
@@ -722,20 +750,7 @@ function Chart({
       scale === "All"
         ? Math.max(minTo, from + 14 * 86_400_000)
         : Math.max(minTo, from + SCALE_DAYS[scale] * 86_400_000);
-    const step = Math.max((to - from) / 240, 3_600_000);
-    const sampled = buildCurve(shots, from, to, step, start);
-    // Include every injection and 24-hour peak exactly. This keeps the drawn
-    // line faithful to the formula instead of letting hourly sampling place a
-    // corner slightly before or after the real event.
-    const criticalTimes = [
-      ...shots.flatMap((shot) => [shot.at, shot.at + 24 * 3_600_000]),
-      ...(start ? [start.at] : []),
-      now,
-    ].filter((t) => t >= from && t <= to);
-    const times = [...new Set([...sampled.map((point) => point.t), ...criticalTimes])].sort(
-      (a, b) => a - b,
-    );
-    const pts = times.map((t) => ({ t, mg: onBoard(shots, t, start) }));
+    const pts = buildCurve(shots, from, to, 2 * 3_600_000, start);
     const maxMg = Math.max(1, ...pts.map((p) => p.mg));
     const x = (t: number) => PAD.left + ((t - from) / (to - from)) * (W - PAD.left - PAD.right);
     const y = (mg: number) => PAD.top + (1 - mg / maxMg) * (H - PAD.top - PAD.bottom);
@@ -744,7 +759,7 @@ function Chart({
 
 
   const { pts, from, to, maxMg, x, y } = model;
-  const line = pts.map((p) => `${x(p.t).toFixed(1)},${y(p.mg).toFixed(1)}`).join(" ");
+  const line = smoothPath(pts.map((point) => ({ x: x(point.t), y: y(point.mg) })));
   const nowY = y(onBoard(shots, now, start));
 
   // ~5 date ticks
@@ -804,8 +819,8 @@ function Chart({
         />
         {/* curve */}
         {(shots.length > 0 || start) && (
-          <polyline
-            points={line}
+          <path
+            d={line}
             fill="none"
             className="stroke-primary"
             strokeWidth="2.5"
