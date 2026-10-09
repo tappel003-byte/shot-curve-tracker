@@ -698,40 +698,33 @@ const SCALE_DAYS: Record<Exclude<Scale, "All">, number> = { "1W": 7, "1M": 30, "
 type SvgPoint = { x: number; y: number; t: number };
 
 /**
- * Display-only corner rounding: draws the two-hour samples as straight
- * segments and fillets each vertex with a quadratic arc that stays inside
- * the corner, so peaks round off without dips, overshoot, or wobble.
- * Dose math and saved data are untouched.
+ * Display-only smoothing: the two-hour dose samples get a gentle binomial
+ * blur (two [1,2,1]/4 passes, ~8h effective window) so the sharp 24h peak
+ * kink rounds off. The blur is a weighted average of neighbors, so it can
+ * never overshoot, dip, or add wobble — it only softens corners. Shot
+ * markers, big numbers, dose math, and saved data all use the exact
+ * unsmoothed values.
  */
 function smoothPath(samples: SvgPoint[]): string {
   const first = samples[0];
   if (!first) return "";
   if (samples.length === 1) return `M ${first.x.toFixed(2)} ${first.y.toFixed(2)}`;
 
-  const MAX_FILLET = 14; // px of corner rounding at most
-  let path = `M ${first.x.toFixed(2)} ${first.y.toFixed(2)}`;
-  let cursor: { x: number; y: number } = first;
+  let ys = samples.map((s) => s.y);
+  for (let pass = 0; pass < 2; pass++) {
+    ys = ys.map((y, index) => {
+      const before = ys[index - 1];
+      const after = ys[index + 1];
+      if (before === undefined || after === undefined) return y;
+      return (before + 2 * y + after) / 4;
+    });
+  }
+
+  let path = `M ${first.x.toFixed(2)} ${(ys[0] ?? first.y).toFixed(2)}`;
   for (let index = 1; index < samples.length; index++) {
-    const vertex = samples[index];
-    const next = samples[index + 1];
-    if (!vertex) continue;
-    if (!next) {
-      path += ` L ${vertex.x.toFixed(2)} ${vertex.y.toFixed(2)}`;
-      continue;
-    }
-    const inDx = vertex.x - cursor.x;
-    const inDy = vertex.y - cursor.y;
-    const outDx = next.x - vertex.x;
-    const outDy = next.y - vertex.y;
-    const inLen = Math.hypot(inDx, inDy);
-    const outLen = Math.hypot(outDx, outDy);
-    if (inLen === 0 || outLen === 0) continue;
-    const trim = Math.min(MAX_FILLET, inLen * 0.45, outLen * 0.45);
-    const entry = { x: vertex.x - (inDx / inLen) * trim, y: vertex.y - (inDy / inLen) * trim };
-    const exit = { x: vertex.x + (outDx / outLen) * trim, y: vertex.y + (outDy / outLen) * trim };
-    path += ` L ${entry.x.toFixed(2)} ${entry.y.toFixed(2)}`;
-    path += ` Q ${vertex.x.toFixed(2)} ${vertex.y.toFixed(2)}, ${exit.x.toFixed(2)} ${exit.y.toFixed(2)}`;
-    cursor = exit;
+    const point = samples[index];
+    if (!point) continue;
+    path += ` L ${point.x.toFixed(2)} ${(ys[index] ?? point.y).toFixed(2)}`;
   }
   return path;
 }
