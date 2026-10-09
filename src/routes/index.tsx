@@ -697,35 +697,28 @@ const SCALE_DAYS: Record<Exclude<Scale, "All">, number> = { "1W": 7, "1M": 30, "
 
 type SvgPoint = { x: number; y: number };
 
-/** Monotone cubic interpolation keeps the sampled curve smooth without overshooting its values. */
-function monotonePath(points: SvgPoint[]): string {
+/** Cardinal spline through the two-hour samples, converted to cubic SVG segments. */
+function smoothPath(points: SvgPoint[]): string {
   const first = points[0];
   if (!first) return "";
   if (points.length === 1) return `M ${first.x.toFixed(2)} ${first.y.toFixed(2)}`;
 
-  const slopes = points.slice(0, -1).map((point, index) => {
-    const next = points[index + 1];
-    if (!next) return 0;
-    return (next.y - point.y) / (next.x - point.x);
-  });
-  const tangents = points.map((_, index) => {
-    if (index === 0) return slopes[0] ?? 0;
-    if (index === points.length - 1) return slopes[slopes.length - 1] ?? 0;
-    const before = slopes[index - 1] ?? 0;
-    const after = slopes[index] ?? 0;
-    if (before === 0 || after === 0 || Math.sign(before) !== Math.sign(after)) return 0;
-    return (2 * before * after) / (before + after);
-  });
-
   let path = `M ${first.x.toFixed(2)} ${first.y.toFixed(2)}`;
   for (let index = 0; index < points.length - 1; index++) {
+    const previous = points[index - 1] ?? points[index];
     const point = points[index];
     const next = points[index + 1];
-    if (!point || !next) continue;
-    const third = (next.x - point.x) / 3;
-    const startTangent = tangents[index] ?? 0;
-    const endTangent = tangents[index + 1] ?? 0;
-    path += ` C ${(point.x + third).toFixed(2)} ${(point.y + startTangent * third).toFixed(2)}, ${(next.x - third).toFixed(2)} ${(next.y - endTangent * third).toFixed(2)}, ${next.x.toFixed(2)} ${next.y.toFixed(2)}`;
+    const following = points[index + 2] ?? next;
+    if (!previous || !point || !next || !following) continue;
+    const firstControl = {
+      x: point.x + (next.x - previous.x) / 6,
+      y: point.y + (next.y - previous.y) / 6,
+    };
+    const secondControl = {
+      x: next.x - (following.x - point.x) / 6,
+      y: next.y - (following.y - point.y) / 6,
+    };
+    path += ` C ${firstControl.x.toFixed(2)} ${firstControl.y.toFixed(2)}, ${secondControl.x.toFixed(2)} ${secondControl.y.toFixed(2)}, ${next.x.toFixed(2)} ${next.y.toFixed(2)}`;
   }
   return path;
 }
@@ -766,7 +759,7 @@ function Chart({
 
 
   const { pts, from, to, maxMg, x, y } = model;
-  const line = monotonePath(pts.map((point) => ({ x: x(point.t), y: y(point.mg) })));
+  const line = smoothPath(pts.map((point) => ({ x: x(point.t), y: y(point.mg) })));
   const nowY = y(onBoard(shots, now, start));
 
   // ~5 date ticks
