@@ -8,3 +8,5 @@
 > Commits you push to the connected branch sync back to Lovable and show up in
 > the editor, so keep the branch in a working state.
 <!-- LOVABLE:END -->
+
+- Keep chart smoothing display-only: use rounded, shape-preserving spline shoulders at extrema without changing dose math or persisted records, so visual refinements cannot alter history.
