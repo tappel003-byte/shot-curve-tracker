@@ -699,28 +699,33 @@ type SvgPoint = { x: number; y: number };
 
 /** Monotone cubic interpolation keeps the sampled curve smooth without overshooting its values. */
 function monotonePath(points: SvgPoint[]): string {
-  if (points.length === 0) return "";
-  if (points.length === 1) return `M ${points[0].x.toFixed(2)} ${points[0].y.toFixed(2)}`;
+  const first = points[0];
+  if (!first) return "";
+  if (points.length === 1) return `M ${first.x.toFixed(2)} ${first.y.toFixed(2)}`;
 
   const slopes = points.slice(0, -1).map((point, index) => {
     const next = points[index + 1];
+    if (!next) return 0;
     return (next.y - point.y) / (next.x - point.x);
   });
   const tangents = points.map((_, index) => {
-    if (index === 0) return slopes[0];
-    if (index === points.length - 1) return slopes[slopes.length - 1];
-    const before = slopes[index - 1];
-    const after = slopes[index];
+    if (index === 0) return slopes[0] ?? 0;
+    if (index === points.length - 1) return slopes[slopes.length - 1] ?? 0;
+    const before = slopes[index - 1] ?? 0;
+    const after = slopes[index] ?? 0;
     if (before === 0 || after === 0 || Math.sign(before) !== Math.sign(after)) return 0;
     return (2 * before * after) / (before + after);
   });
 
-  let path = `M ${points[0].x.toFixed(2)} ${points[0].y.toFixed(2)}`;
+  let path = `M ${first.x.toFixed(2)} ${first.y.toFixed(2)}`;
   for (let index = 0; index < points.length - 1; index++) {
     const point = points[index];
     const next = points[index + 1];
+    if (!point || !next) continue;
     const third = (next.x - point.x) / 3;
-    path += ` C ${(point.x + third).toFixed(2)} ${(point.y + tangents[index] * third).toFixed(2)}, ${(next.x - third).toFixed(2)} ${(next.y - tangents[index + 1] * third).toFixed(2)}, ${next.x.toFixed(2)} ${next.y.toFixed(2)}`;
+    const startTangent = tangents[index] ?? 0;
+    const endTangent = tangents[index + 1] ?? 0;
+    path += ` C ${(point.x + third).toFixed(2)} ${(point.y + startTangent * third).toFixed(2)}, ${(next.x - third).toFixed(2)} ${(next.y - endTangent * third).toFixed(2)}, ${next.x.toFixed(2)} ${next.y.toFixed(2)}`;
   }
   return path;
 }
