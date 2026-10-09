@@ -697,51 +697,26 @@ const SCALE_DAYS: Record<Exclude<Scale, "All">, number> = { "1W": 7, "1M": 30, "
 
 type SvgPoint = { x: number; y: number; t: number };
 
-/** Display-only rounded turns; leave the underlying two-hour dose samples intact. */
+/** Display-only Catmull-Rom spline through every two-hour sample; dose math untouched. */
 function smoothPath(samples: SvgPoint[]): string {
-  // Two-hour handles are too short to visibly round a 24-hour peak. Give each
-  // turn a twelve-hour shoulder, retaining the extremum itself and endpoints.
-  const turns = samples.filter((point, index) => {
-    const before = samples[index - 1];
-    const after = samples[index + 1];
-    return before && after && (point.y - before.y) * (after.y - point.y) < 0;
-  });
-  const points = samples.filter((point, index) =>
-    index === 0 || index === samples.length - 1 || turns.includes(point) ||
-    turns.every((turn) => Math.abs(point.t - turn.t) >= 12 * 3_600_000),
-  );
-  const first = points[0];
+  const first = samples[0];
   if (!first) return "";
-  if (points.length === 1) return `M ${first.x.toFixed(2)} ${first.y.toFixed(2)}`;
+  if (samples.length === 1) return `M ${first.x.toFixed(2)} ${first.y.toFixed(2)}`;
 
-  const slopes = points.slice(1).map((point, index) => {
-    const previous = points[index];
-    return previous ? (point.y - previous.y) / (point.x - previous.x) : 0;
-  });
-  const tangents = points.map((_, index) => {
-    const before = slopes[index - 1];
-    const after = slopes[index];
-    if (before === undefined) return after ?? 0;
-    if (after === undefined) return before;
-    // Horizontal tangent at every peak/trough; harmonic mean avoids overshoot.
-    if (before * after <= 0) return 0;
-    return 2 * before * after / (before + after);
-  });
+  // Uniformly spaced samples: tangent at each interior point parallels the
+  // chord between its neighbors, so peaks round naturally with no wobble.
   let path = `M ${first.x.toFixed(2)} ${first.y.toFixed(2)}`;
-  for (let index = 0; index < points.length - 1; index++) {
-    const point = points[index];
-    const next = points[index + 1];
-    if (!point || !next) continue;
-    const handle = (next.x - point.x) / 3;
-    const firstControl = {
-      x: point.x + handle,
-      y: point.y + handle * (tangents[index] ?? 0),
-    };
-    const secondControl = {
-      x: next.x - handle,
-      y: next.y - handle * (tangents[index + 1] ?? 0),
-    };
-    path += ` C ${firstControl.x.toFixed(2)} ${firstControl.y.toFixed(2)}, ${secondControl.x.toFixed(2)} ${secondControl.y.toFixed(2)}, ${next.x.toFixed(2)} ${next.y.toFixed(2)}`;
+  for (let index = 0; index < samples.length - 1; index++) {
+    const p0 = samples[index - 1] ?? samples[index];
+    const p1 = samples[index];
+    const p2 = samples[index + 1];
+    const p3 = samples[index + 2] ?? p2;
+    if (!p0 || !p1 || !p2 || !p3) continue;
+    const c1x = p1.x + (p2.x - p0.x) / 6;
+    const c1y = p1.y + (p2.y - p0.y) / 6;
+    const c2x = p2.x - (p3.x - p1.x) / 6;
+    const c2y = p2.y - (p3.y - p1.y) / 6;
+    path += ` C ${c1x.toFixed(2)} ${c1y.toFixed(2)}, ${c2x.toFixed(2)} ${c2y.toFixed(2)}, ${p2.x.toFixed(2)} ${p2.y.toFixed(2)}`;
   }
   return path;
 }
