@@ -695,28 +695,51 @@ type Scale = "1W" | "1M" | "3M" | "All";
 const SCALES: Scale[] = ["1W", "1M", "3M", "All"];
 const SCALE_DAYS: Record<Exclude<Scale, "All">, number> = { "1W": 7, "1M": 30, "3M": 90 };
 
-type SvgPoint = { x: number; y: number };
+type SvgPoint = { x: number; y: number; t: number };
 
-/** Cardinal spline through the two-hour samples, converted to cubic SVG segments. */
-function smoothPath(points: SvgPoint[]): string {
+/** Display-only rounded turns; leave the underlying two-hour dose samples intact. */
+function smoothPath(samples: SvgPoint[]): string {
+  // Two-hour handles are too short to visibly round a 24-hour peak. Give each
+  // turn a twelve-hour shoulder, retaining the extremum itself and endpoints.
+  const turns = samples.filter((point, index) => {
+    const before = samples[index - 1];
+    const after = samples[index + 1];
+    return before && after && (point.y - before.y) * (after.y - point.y) < 0;
+  });
+  const points = samples.filter((point, index) =>
+    index === 0 || index === samples.length - 1 || turns.includes(point) ||
+    turns.every((turn) => Math.abs(point.t - turn.t) >= 12 * 3_600_000),
+  );
   const first = points[0];
   if (!first) return "";
   if (points.length === 1) return `M ${first.x.toFixed(2)} ${first.y.toFixed(2)}`;
 
+  const slopes = points.slice(1).map((point, index) => {
+    const previous = points[index];
+    return previous ? (point.y - previous.y) / (point.x - previous.x) : 0;
+  });
+  const tangents = points.map((_, index) => {
+    const before = slopes[index - 1];
+    const after = slopes[index];
+    if (before === undefined) return after ?? 0;
+    if (after === undefined) return before;
+    // Horizontal tangent at every peak/trough; harmonic mean avoids overshoot.
+    if (before * after <= 0) return 0;
+    return 2 * before * after / (before + after);
+  });
   let path = `M ${first.x.toFixed(2)} ${first.y.toFixed(2)}`;
   for (let index = 0; index < points.length - 1; index++) {
-    const previous = points[index - 1] ?? points[index];
     const point = points[index];
     const next = points[index + 1];
-    const following = points[index + 2] ?? next;
-    if (!previous || !point || !next || !following) continue;
+    if (!point || !next) continue;
+    const handle = (next.x - point.x) / 3;
     const firstControl = {
-      x: point.x + (next.x - previous.x) / 6,
-      y: point.y + (next.y - previous.y) / 6,
+      x: point.x + handle,
+      y: point.y + handle * (tangents[index] ?? 0),
     };
     const secondControl = {
-      x: next.x - (following.x - point.x) / 6,
-      y: next.y - (following.y - point.y) / 6,
+      x: next.x - handle,
+      y: next.y - handle * (tangents[index + 1] ?? 0),
     };
     path += ` C ${firstControl.x.toFixed(2)} ${firstControl.y.toFixed(2)}, ${secondControl.x.toFixed(2)} ${secondControl.y.toFixed(2)}, ${next.x.toFixed(2)} ${next.y.toFixed(2)}`;
   }
@@ -759,7 +782,7 @@ function Chart({
 
 
   const { pts, from, to, maxMg, x, y } = model;
-  const line = smoothPath(pts.map((point) => ({ x: x(point.t), y: y(point.mg) })));
+  const line = smoothPath(pts.map((point) => ({ x: x(point.t), y: y(point.mg), t: point.t })));
   const nowY = y(onBoard(shots, now, start));
 
   // ~5 date ticks
