@@ -710,7 +710,7 @@ function smoothPath(samples: SvgPoint[]): string {
 
   const MAX_FILLET = 14; // px of corner rounding at most
   let path = `M ${first.x.toFixed(2)} ${first.y.toFixed(2)}`;
-  let cursor = first;
+  let cursor: { x: number; y: number } = first;
   for (let index = 1; index < samples.length; index++) {
     const vertex = samples[index];
     const next = samples[index + 1];
