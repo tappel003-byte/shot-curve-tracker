@@ -698,33 +698,21 @@ const SCALE_DAYS: Record<Exclude<Scale, "All">, number> = { "1W": 7, "1M": 30, "
 type SvgPoint = { x: number; y: number; t: number };
 
 /**
- * Display-only smoothing: the two-hour dose samples get a gentle binomial
- * blur (two [1,2,1]/4 passes, ~8h effective window) so the sharp 24h peak
- * kink rounds off. The blur is a weighted average of neighbors, so it can
- * never overshoot, dip, or add wobble — it only softens corners. Shot
- * markers, big numbers, dose math, and saved data all use the exact
- * unsmoothed values.
+ * Display path: honest raw 2h polyline through exact `onBoard` samples.
+ * Straight SVG `L` segments — no cubic shoulders, no binomial blur — so the
+ * 24h peak kink reads as sharp triangular spikes. Dose math, markers, big
+ * numbers, persistence, and seed restore are unchanged.
  */
 function smoothPath(samples: SvgPoint[]): string {
   const first = samples[0];
   if (!first) return "";
   if (samples.length === 1) return `M ${first.x.toFixed(2)} ${first.y.toFixed(2)}`;
 
-  let ys = samples.map((s) => s.y);
-  for (let pass = 0; pass < 2; pass++) {
-    ys = ys.map((y, index) => {
-      const before = ys[index - 1];
-      const after = ys[index + 1];
-      if (before === undefined || after === undefined) return y;
-      return (before + 2 * y + after) / 4;
-    });
-  }
-
-  let path = `M ${first.x.toFixed(2)} ${(ys[0] ?? first.y).toFixed(2)}`;
+  let path = `M ${first.x.toFixed(2)} ${first.y.toFixed(2)}`;
   for (let index = 1; index < samples.length; index++) {
     const point = samples[index];
     if (!point) continue;
-    path += ` L ${point.x.toFixed(2)} ${(ys[index] ?? point.y).toFixed(2)}`;
+    path += ` L ${point.x.toFixed(2)} ${point.y.toFixed(2)}`;
   }
   return path;
 }
