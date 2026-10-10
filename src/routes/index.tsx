@@ -852,9 +852,11 @@ function Chart({
     ) + 12 * 3_600_000;
 
     // Fixed scales: recent past window ending at now, plus forecast beyond.
-    // All: full history from first known level/shot.
-    const from =
+    // All: full history from first known level/shot. If look-ahead is overdue
+    // (before the window), pull `from` back so the ring still lands on-curve.
+    let from =
       scale === "All" ? anchor : Math.max(anchor, now - SCALE_DAYS[scale] * DAY_MS);
+    if (forecastAt >= anchor && forecastAt < from) from = forecastAt;
     const to =
       scale === "All"
         ? Math.max(minTo, from + 14 * DAY_MS)
