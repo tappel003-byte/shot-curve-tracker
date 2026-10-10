@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { AppTabs } from "@/components/app-tabs";
+import { ShotCurveChart, type ChartScale } from "@/components/shot-curve-chart";
 import {
   DRIFT_HOURS,
   fmtMg,
@@ -11,7 +12,6 @@ import {
   onBoard,
   saveShots,
   saveStart,
-  curve as buildCurve,
   type Shot,
   type StartLevel,
 } from "@/lib/shotcurve";
@@ -115,7 +115,7 @@ function ShotCurve() {
   const [showStartForm, setShowStartForm] = useState(false);
 
   const [mounted, setMounted] = useState(false);
-  const [scale, setScale] = useState<Scale>("1W");
+  const [scale, setScale] = useState<ChartScale>("1W");
   const [schedule, setSchedule] = useState<{ days: number; mg: number | null }>({
     days: DRIFT_HOURS / 24,
     mg: null,
@@ -391,7 +391,7 @@ function ShotCurve() {
 
 
       {mounted ? (
-        <Chart shots={shots} now={now} start={start} scale={scale} onScaleChange={setScale} />
+        <ShotCurveChart shots={shots} now={now} start={start} scale={scale} onScaleChange={setScale} />
       ) : (
         <div className="h-[220px] rounded-xl border border-border bg-card" />
       )}
@@ -688,218 +688,5 @@ function DoseButton({
       <div className="text-sm font-semibold">{label}</div>
       <div className={`text-[11px] ${active ? "text-primary-foreground/80" : "text-muted-foreground"}`}>{sub}</div>
     </button>
-  );
-}
-
-type Scale = "1W" | "1M" | "3M" | "All";
-const SCALES: Scale[] = ["1W", "1M", "3M", "All"];
-const SCALE_DAYS: Record<Exclude<Scale, "All">, number> = { "1W": 7, "1M": 30, "3M": 90 };
-
-type SvgPoint = { x: number; y: number; t: number };
-
-/**
- * Display-only smoothing: the two-hour dose samples get a gentle binomial
- * blur (two [1,2,1]/4 passes, ~8h effective window) so the sharp 24h peak
- * kink rounds off. The blur is a weighted average of neighbors, so it can
- * never overshoot, dip, or add wobble — it only softens corners. Shot
- * markers, big numbers, dose math, and saved data all use the exact
- * unsmoothed values.
- */
-function smoothPath(samples: SvgPoint[]): string {
-  const first = samples[0];
-  if (!first) return "";
-  if (samples.length === 1) return `M ${first.x.toFixed(2)} ${first.y.toFixed(2)}`;
-
-  let ys = samples.map((s) => s.y);
-  for (let pass = 0; pass < 2; pass++) {
-    ys = ys.map((y, index) => {
-      const before = ys[index - 1];
-      const after = ys[index + 1];
-      if (before === undefined || after === undefined) return y;
-      return (before + 2 * y + after) / 4;
-    });
-  }
-
-  let path = `M ${first.x.toFixed(2)} ${(ys[0] ?? first.y).toFixed(2)}`;
-  for (let index = 1; index < samples.length; index++) {
-    const point = samples[index];
-    if (!point) continue;
-    path += ` L ${point.x.toFixed(2)} ${(ys[index] ?? point.y).toFixed(2)}`;
-  }
-  return path;
-}
-
-function Chart({
-  shots,
-  now,
-  start,
-  scale,
-  onScaleChange,
-}: {
-  shots: Shot[];
-  now: number;
-  start: StartLevel | null;
-  scale: Scale;
-  onScaleChange: (s: Scale) => void;
-}) {
-  const W = 360;
-  const H = 200;
-  const PAD = { top: 22, right: 10, bottom: 22, left: 34 };
-
-  const model = useMemo(() => {
-    const anchor = Math.min(shots[0]?.at ?? now, start?.at ?? now, now);
-    // Start exactly at the first known level/shot. Padding before it creates a
-    // false zero-level segment and makes the first date appear a day early.
-    const from = anchor;
-    const minTo = now + DRIFT_HOURS * 3_600_000;
-    const to =
-      scale === "All"
-        ? Math.max(minTo, from + 14 * 86_400_000)
-        : Math.max(minTo, from + SCALE_DAYS[scale] * 86_400_000);
-    const pts = buildCurve(shots, from, to, 2 * 3_600_000, start);
-    const maxMg = Math.max(1, ...pts.map((p) => p.mg));
-    const x = (t: number) => PAD.left + ((t - from) / (to - from)) * (W - PAD.left - PAD.right);
-    const y = (mg: number) => PAD.top + (1 - mg / maxMg) * (H - PAD.top - PAD.bottom);
-    return { pts, from, to, maxMg, x, y };
-  }, [shots, now, start, scale]);
-
-
-  const { pts, from, to, maxMg, x, y } = model;
-  const line = smoothPath(pts.map((point) => ({ x: x(point.t), y: y(point.mg), t: point.t })));
-  const nowY = y(onBoard(shots, now, start));
-
-  // ~5 date ticks
-  const ticks: number[] = [];
-  const tickStep = (to - from) / 4;
-  for (let i = 0; i <= 4; i++) ticks.push(from + i * tickStep);
-
-  // dose badges: only on the closer scales, and only when marks aren't crowded
-  const visible = shots.filter((s) => s.at >= from && s.at <= to);
-  const showBadges =
-    (scale === "1W" || scale === "1M") &&
-    visible.every((s, i) => {
-      const previous = visible[i - 1];
-      return !previous || x(s.at) - x(previous.at) > 34;
-    });
-
-  return (
-    <section className="rounded-xl border border-border bg-card p-3">
-      <div className="mb-2 flex gap-1">
-        {SCALES.map((s) => (
-          <button
-            key={s}
-            onClick={() => onScaleChange(s)}
-            className={`flex-1 rounded-full px-2 py-1 text-[11px] font-semibold transition-colors ${
-              s === scale
-                ? "bg-primary text-primary-foreground"
-                : "bg-muted text-muted-foreground"
-            }`}
-          >
-            {s}
-          </button>
-        ))}
-      </div>
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="Estimated mg on board over time">
-
-        {/* gridlines */}
-        {[0.25, 0.5, 0.75, 1].map((f) => {
-          const gy = y(maxMg * f);
-          return (
-            <g key={f}>
-              <line x1={PAD.left} x2={W - PAD.right} y1={gy} y2={gy} className="stroke-border" strokeWidth="1" />
-              <text x={PAD.left - 5} y={gy + 3} textAnchor="end" className="fill-muted-foreground" fontSize="9">
-                {fmtMg(maxMg * f)}
-              </text>
-            </g>
-          );
-        })}
-        {/* now line */}
-        <line
-          x1={x(now)}
-          x2={x(now)}
-          y1={PAD.top}
-          y2={H - PAD.bottom}
-          className="stroke-muted-foreground"
-          strokeWidth="1"
-          strokeDasharray="3 3"
-        />
-        {/* curve */}
-        {(shots.length > 0 || start) && (
-          <path
-            d={line}
-            fill="none"
-            className="stroke-primary"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        )}
-        {/* shot marks */}
-        {visible.map((s) => {
-          const cx = x(s.at);
-          const cy = y(onBoard(shots, s.at, start));
-          const label = `${fmtMg(s.mg)} mg`;
-          const bw = label.length * 5 + 8;
-          const bx = Math.min(Math.max(cx - bw / 2, PAD.left), W - PAD.right - bw);
-          const by = Math.max(cy - 26, 2);
-          return (
-            <g key={s.id}>
-              <line
-                x1={cx}
-                x2={cx}
-                y1={H - PAD.bottom}
-                y2={H - PAD.bottom + 6}
-                className="stroke-accent-foreground"
-                strokeWidth="1.5"
-              />
-              <circle cx={cx} cy={cy} r="3.5" className="fill-primary" />
-              {showBadges && (
-                <g>
-                  <rect
-                    x={bx}
-                    y={by}
-                    width={bw}
-                    height="13"
-                    rx="6.5"
-                    className="fill-card stroke-primary"
-                    strokeWidth="1"
-                  />
-                  <text
-                    x={bx + bw / 2}
-                    y={by + 9.5}
-                    textAnchor="middle"
-                    className="fill-foreground"
-                    fontSize="8.5"
-                    fontWeight="600"
-                  >
-                    {label}
-                  </text>
-                </g>
-              )}
-            </g>
-          );
-        })}
-
-        {/* now dot */}
-        {(shots.length > 0 || start) && <circle cx={x(now)} cy={nowY} r="4" className="fill-foreground" />}
-        {/* x labels */}
-        {ticks.map((t, i) => (
-          <text
-            key={i}
-            x={x(t)}
-            y={H - 8}
-            textAnchor="middle"
-            className="fill-muted-foreground"
-            fontSize="9"
-          >
-            {new Date(t).toLocaleDateString(undefined, { month: "numeric", day: "numeric" })}
-          </text>
-        ))}
-      </svg>
-      <div className="mt-1 flex items-center justify-between px-1 text-[11px] text-muted-foreground">
-        <span>marks = shots</span>
-        <span>dashed = now</span>
-      </div>
-    </section>
   );
 }
