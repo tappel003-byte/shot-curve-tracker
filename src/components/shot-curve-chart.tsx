@@ -18,8 +18,16 @@ const SCALE_DAYS: Record<Exclude<ChartScale, "All">, number> = {
 
 type SvgPoint = { x: number; y: number; t: number };
 
-/** Hours of clearance around each extremum so cubic handles can form a visible shoulder. */
-const SHOULDER_HOURS = 20;
+/**
+ * Display knot spacing. Prior pass only cleared ~20h around extrema while keeping
+ * every 2h sample on the long decay — shoulders stayed ~1–3px wide (invisible on
+ * phone) and the sparse→dense handoff kinked the fall. Uniform wider knots fix both.
+ */
+const SHOULDER_HOURS = 40;
+const STEP_HOURS = 20;
+/** Longer Bezier handles at flat extrema so peaks read as rounded domes, not tips. */
+const EXTREMUM_HANDLE = 0.42;
+const NORMAL_HANDLE = 1 / 3;
 
 /**
  * Display-only path refinement.
@@ -29,9 +37,10 @@ const SHOULDER_HOURS = 20;
  * - The PK model has a derivative kink at the 24h peak, so polyline corners become
  *   sharp triangles at extrema — spreadsheet-plot energy, not bad half-life math.
  *
- * This builds a shape-preserving cubic Hermite path through a thinned knot set:
- * extrema keep horizontal tangents (rounded shoulders), harmonic-mean slopes avoid
- * overshoot, and nearby 2h samples are dropped so handles are long enough to see.
+ * This builds a shape-preserving cubic Hermite path through a uniformly decimated
+ * knot set: extrema keep horizontal tangents and longer handles (visible rounded
+ * shoulders), decay uses the same ~20h cadence (one continuous fall, no local
+ * bumps/flat steps), and harmonic-mean slopes avoid overshoot.
  * Markers, big numbers, dose math, and persisted data never use this path.
  */
 export function smoothPath(samples: SvgPoint[]): string {
@@ -46,13 +55,28 @@ export function smoothPath(samples: SvgPoint[]): string {
   });
 
   const shoulderMs = SHOULDER_HOURS * 3_600_000;
-  const points = samples.filter(
-    (point, index) =>
-      index === 0 ||
-      index === samples.length - 1 ||
-      turns.includes(point) ||
-      turns.every((turn) => Math.abs(point.t - turn.t) >= shoulderMs),
-  );
+  const stepMs = STEP_HOURS * 3_600_000;
+  const points: SvgPoint[] = [];
+  let lastKeptT = Number.NEGATIVE_INFINITY;
+  for (let index = 0; index < samples.length; index++) {
+    const point = samples[index];
+    if (!point) continue;
+    const isEnd = index === 0 || index === samples.length - 1;
+    const isTurn = turns.includes(point);
+    const nearTurn = turns.some((turn) => Math.abs(point.t - turn.t) < shoulderMs);
+    if (isEnd || isTurn) {
+      points.push(point);
+      lastKeptT = point.t;
+      continue;
+    }
+    // Drop samples inside the shoulder window so peak handles stay long.
+    if (nearTurn) continue;
+    // Uniform cadence on rises/decays — avoids sparse→dense kinks on the way down.
+    if (point.t - lastKeptT >= stepMs) {
+      points.push(point);
+      lastKeptT = point.t;
+    }
+  }
 
   const knot = points[0];
   if (!knot) return "";
@@ -74,16 +98,32 @@ export function smoothPath(samples: SvgPoint[]): string {
     return (2 * before * after) / (before + after);
   });
 
+  // Keep monotone runs from developing reverse-kinks (weird descent).
+  for (let index = 0; index < points.length; index++) {
+    const before = slopes[index - 1];
+    const after = slopes[index];
+    const tangent = tangents[index];
+    if (tangent === undefined || before === undefined || after === undefined) continue;
+    if (before > 0 && after > 0) {
+      tangents[index] = Math.min(Math.max(tangent, 0), Math.min(before, after));
+    } else if (before < 0 && after < 0) {
+      tangents[index] = Math.max(Math.min(tangent, 0), Math.max(before, after));
+    }
+  }
+
   let path = `M ${knot.x.toFixed(2)} ${knot.y.toFixed(2)}`;
   for (let index = 0; index < points.length - 1; index++) {
     const point = points[index];
     const next = points[index + 1];
     if (!point || !next) continue;
-    const handle = (next.x - point.x) / 3;
-    const c1x = point.x + handle;
-    const c1y = point.y + handle * (tangents[index] ?? 0);
-    const c2x = next.x - handle;
-    const c2y = next.y - handle * (tangents[index + 1] ?? 0);
+    const leftFlat = (tangents[index] ?? 0) === 0;
+    const rightFlat = (tangents[index + 1] ?? 0) === 0;
+    const frac = leftFlat || rightFlat ? EXTREMUM_HANDLE : NORMAL_HANDLE;
+    const dx = next.x - point.x;
+    const c1x = point.x + dx * frac;
+    const c1y = point.y + dx * frac * (tangents[index] ?? 0);
+    const c2x = next.x - dx * frac;
+    const c2y = next.y - dx * frac * (tangents[index + 1] ?? 0);
     path += ` C ${c1x.toFixed(2)} ${c1y.toFixed(2)}, ${c2x.toFixed(2)} ${c2y.toFixed(2)}, ${next.x.toFixed(2)} ${next.y.toFixed(2)}`;
   }
   return path;
