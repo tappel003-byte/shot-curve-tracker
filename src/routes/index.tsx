@@ -117,8 +117,10 @@ function ShotCurve() {
 
   const [mounted, setMounted] = useState(false);
   const [scale, setScale] = useState<Scale>("1W");
-  /** false = on-board at next scheduled shot; true = if waiting scheduleDays from now */
+  /** false = on-board at next scheduled shot; true = delay preview from now */
   const [ifIWait, setIfIWait] = useState(false);
+  /** editable wait horizon (days from now); defaults to Recon schedule / 3.5d */
+  const [waitDays, setWaitDays] = useState(DRIFT_HOURS / 24);
   const [schedule, setSchedule] = useState<{ days: number; mg: number | null }>({
     days: DRIFT_HOURS / 24,
     mg: null,
@@ -156,10 +158,12 @@ function ShotCurve() {
       const r = JSON.parse(localStorage.getItem("shotcurve.recon.v1") ?? "null");
       const days = parseFloat(r?.scheduleDays);
       const mg = parseFloat(r?.wantedMg);
+      const schedDays = Number.isFinite(days) && days > 0 ? days : DRIFT_HOURS / 24;
       setSchedule({
-        days: Number.isFinite(days) && days > 0 ? days : DRIFT_HOURS / 24,
+        days: schedDays,
         mg: Number.isFinite(mg) && mg > 0 ? mg : null,
       });
+      setWaitDays(schedDays);
     } catch {
       /* ignore */
     }
@@ -334,17 +338,19 @@ function ShotCurve() {
 
   const lastShot = shots.length ? shots[shots.length - 1] : null;
   const intervalHours = schedule.days > 0 ? schedule.days * 24 : DRIFT_HOURS;
-  const waitDays = schedule.days > 0 ? schedule.days : DRIFT_HOURS / 24;
-  const waitAt = now + intervalHours * 3_600_000;
+  const clampedWaitDays = Math.min(21, Math.max(0.5, waitDays));
+  const waitAt = now + clampedWaitDays * 24 * 3_600_000;
   const nextAt = lastShot ? lastShot.at + intervalHours * 3_600_000 : null;
   const nextMg = schedule.mg ?? lastShot?.mg ?? 6;
 
+  const showWait = ifIWait || nextAt === null;
   // Titration helper: same onBoard model, different look-ahead time (no planned shots).
-  const lookAt = ifIWait || nextAt === null ? waitAt : nextAt;
+  const lookAt = showWait ? waitAt : nextAt!;
   const lookMg = onBoard(shots, lookAt, start);
-  const lookLabel = ifIWait || nextAt === null ? "If I wait" : "At next shot";
-  const waitDaysLabel =
-    Number.isInteger(waitDays) ? `${waitDays}` : waitDays.toFixed(1);
+  const lookLabel = showWait ? "If I wait" : "At next shot";
+  const waitDaysLabel = Number.isInteger(clampedWaitDays)
+    ? `${clampedWaitDays}`
+    : clampedWaitDays.toFixed(1);
   const lookWhen = mounted
     ? new Date(lookAt).toLocaleString(undefined, {
         weekday: "short",
@@ -354,10 +360,13 @@ function ShotCurve() {
         minute: "2-digit",
       })
     : "…";
-  const lookHint =
-    ifIWait || nextAt === null
-      ? `if nothing else · ~${waitDaysLabel}d from now · ${lookWhen}`
-      : `if nothing else · ${lookWhen}`;
+  const lookHint = showWait
+    ? `if nothing else · from now · ${lookWhen}`
+    : `if nothing else · ${lookWhen}`;
+
+  const nudgeWait = (delta: number) => {
+    setWaitDays((d) => Math.min(21, Math.max(0.5, Math.round((d + delta) * 2) / 2)));
+  };
 
   return (
     <div className="mx-auto min-h-screen max-w-md px-4 pb-16 pt-6">
@@ -369,7 +378,7 @@ function ShotCurve() {
         </p>
       </header>
 
-      {/* Big numbers — second card toggles next-shot vs wait-from-now for titration */}
+      {/* Big numbers — second card: next-shot default, or wait N days from now */}
       <section className="mb-6 grid grid-cols-2 gap-3">
         <div className="rounded-xl border border-border bg-card p-4">
           <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -387,10 +396,10 @@ function ShotCurve() {
             </div>
             <label className="flex shrink-0 items-center gap-1.5 pt-0.5">
               <span className="sr-only">
-                Show on-board if waiting ~{waitDaysLabel} days from now instead of at next shot
+                Preview on-board if waiting a chosen number of days from now
               </span>
               <Switch
-                checked={ifIWait || nextAt === null}
+                checked={showWait}
                 onCheckedChange={setIfIWait}
                 disabled={nextAt === null}
                 aria-label="If I wait"
@@ -401,6 +410,32 @@ function ShotCurve() {
             {fmtMg(lookMg)}
             <span className="ml-1 text-sm font-medium text-muted-foreground">mg</span>
           </div>
+          {showWait && (
+            <div className="mt-2 flex items-center justify-between gap-1">
+              <button
+                type="button"
+                onClick={() => nudgeWait(-0.5)}
+                disabled={clampedWaitDays <= 0.5}
+                className="flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background text-base font-semibold text-foreground disabled:opacity-40"
+                aria-label="Wait half a day less"
+              >
+                −
+              </button>
+              <div className="min-w-0 flex-1 text-center text-xs font-semibold tabular-nums text-foreground">
+                {waitDaysLabel}
+                <span className="ml-0.5 font-medium text-muted-foreground">d</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => nudgeWait(0.5)}
+                disabled={clampedWaitDays >= 21}
+                className="flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background text-base font-semibold text-foreground disabled:opacity-40"
+                aria-label="Wait half a day more"
+              >
+                +
+              </button>
+            </div>
+          )}
           <div className="mt-1 text-[11px] leading-snug text-muted-foreground">{lookHint}</div>
         </div>
       </section>
