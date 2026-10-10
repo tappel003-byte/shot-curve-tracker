@@ -888,7 +888,17 @@ function Chart({
   if (exactNow >= 0) nowIdx = exactNow;
   const pastLine = pathFromSamples(samples, ys, 0, nowIdx);
   const futureLine = pathFromSamples(samples, ys, nowIdx, samples.length - 1);
-  const nowY = y(onBoard(shots, now, start));
+  const nowMg = onBoard(shots, now, start);
+  const nowY = y(nowMg);
+  const nowX = x(now);
+  const nowMgLabel = `${fmtMg(nowMg)} mg`;
+  const nowMgLabelW = nowMgLabel.length * 5.2 + 8;
+  // Sit just right of the vertical now line, above the level line — crosshair readout.
+  const nowMgLabelX = Math.min(
+    Math.max(nowX + 6, PAD.left),
+    W - PAD.right - nowMgLabelW,
+  );
+  const nowMgLabelY = Math.min(Math.max(nowY - 16, 2), H - PAD.bottom - 14);
   const forecastMg = onBoard(shots, forecastAt, start);
   const forecastInView = forecastAt >= from && forecastAt <= to;
   const forecastX = x(forecastAt);
@@ -941,10 +951,21 @@ function Chart({
             </g>
           );
         })}
-        {/* now line */}
+        {/* now crosshair: horizontal = current on-board mg, vertical = now */}
+        {hasCurve && (
+          <line
+            x1={PAD.left}
+            x2={W - PAD.right}
+            y1={nowY}
+            y2={nowY}
+            className="stroke-muted-foreground"
+            strokeWidth="1"
+            strokeDasharray="3 3"
+          />
+        )}
         <line
-          x1={x(now)}
-          x2={x(now)}
+          x1={nowX}
+          x2={nowX}
           y1={PAD.top}
           y2={H - PAD.bottom}
           className="stroke-muted-foreground"
@@ -1019,8 +1040,32 @@ function Chart({
           );
         })}
 
-        {/* now dot */}
-        {hasCurve && <circle cx={x(now)} cy={nowY} r="4" className="fill-foreground" />}
+        {/* now dot — intersection of time + level */}
+        {hasCurve && <circle cx={nowX} cy={nowY} r="4" className="fill-foreground" />}
+        {/* current mg label on the horizontal level line */}
+        {hasCurve && (
+          <g>
+            <rect
+              x={nowMgLabelX}
+              y={nowMgLabelY}
+              width={nowMgLabelW}
+              height="13"
+              rx="6.5"
+              className="fill-card stroke-muted-foreground"
+              strokeWidth="1"
+            />
+            <text
+              x={nowMgLabelX + nowMgLabelW / 2}
+              y={nowMgLabelY + 9.5}
+              textAnchor="middle"
+              className="fill-foreground"
+              fontSize="8.5"
+              fontWeight="600"
+            >
+              {nowMgLabel}
+            </text>
+          </g>
+        )}
         {/* look-ahead ring — same timestamp/mg as the second card */}
         {hasCurve && forecastInView && (
           <g>
@@ -1051,7 +1096,7 @@ function Chart({
       </svg>
       <div className="mt-1 flex items-center justify-between gap-2 px-1 text-[11px] text-muted-foreground">
         <span>marks = shots</span>
-        <span className="text-right">dashed = now · soft = forecast</span>
+        <span className="text-right">dashed cross = now · soft = forecast</span>
       </div>
     </section>
   );
