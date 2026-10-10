@@ -343,9 +343,11 @@ function ShotCurve() {
   const nextAt = lastShot ? lastShot.at + intervalHours * 3_600_000 : null;
   const nextMg = schedule.mg ?? lastShot?.mg ?? 6;
 
-  const showWait = ifIWait || nextAt === null;
+  // Before mount, shots aren't loaded yet — keep next-shot default so SSR/hydration
+  // doesn't flash the wait stepper with empty data.
+  const showWait = mounted && (ifIWait || nextAt === null);
   // Titration helper: same onBoard model, different look-ahead time (no planned shots).
-  const lookAt = showWait ? waitAt : nextAt!;
+  const lookAt = showWait ? waitAt : (nextAt ?? waitAt);
   const lookMg = onBoard(shots, lookAt, start);
   const lookLabel = showWait ? "If I wait" : "At next shot";
   const waitDaysLabel = Number.isInteger(clampedWaitDays)
