@@ -19,7 +19,7 @@ const SCALE_DAYS: Record<Exclude<ChartScale, "All">, number> = {
 type SvgPoint = { x: number; y: number; t: number };
 
 /** Hours of clearance around each extremum so cubic handles can form a visible shoulder. */
-const SHOULDER_HOURS = 16;
+const SHOULDER_HOURS = 20;
 
 /**
  * Display-only path refinement.
