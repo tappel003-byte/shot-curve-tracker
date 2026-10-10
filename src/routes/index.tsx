@@ -463,7 +463,16 @@ function ShotCurve() {
 
 
       {mounted ? (
-        <Chart shots={shots} now={now} start={start} scale={scale} onScaleChange={setScale} />
+        <Chart
+          shots={shots}
+          now={now}
+          start={start}
+          scale={scale}
+          onScaleChange={setScale}
+          forecastAt={lookAt}
+          waitDays={clampedWaitDays}
+          nextAt={nextAt}
+        />
       ) : (
         <div className="h-[220px] rounded-xl border border-border bg-card" />
       )}
@@ -766,6 +775,9 @@ function DoseButton({
 type Scale = "1W" | "1M" | "3M" | "All";
 const SCALES: Scale[] = ["1W", "1M", "3M", "All"];
 const SCALE_DAYS: Record<Exclude<Scale, "All">, number> = { "1W": 7, "1M": 30, "3M": 90 };
+const DAY_MS = 86_400_000;
+/** Soft teal-green nod to the home-screen icon — forecast stroke only. */
+const FORECAST_STROKE = "oklch(0.52 0.07 165)";
 
 type SvgPoint = { x: number; y: number; t: number };
 
@@ -777,11 +789,7 @@ type SvgPoint = { x: number; y: number; t: number };
  * markers, big numbers, dose math, and saved data all use the exact
  * unsmoothed values.
  */
-function smoothPath(samples: SvgPoint[]): string {
-  const first = samples[0];
-  if (!first) return "";
-  if (samples.length === 1) return `M ${first.x.toFixed(2)} ${first.y.toFixed(2)}`;
-
+function smoothYs(samples: SvgPoint[]): number[] {
   let ys = samples.map((s) => s.y);
   for (let pass = 0; pass < 2; pass++) {
     ys = ys.map((y, index) => {
@@ -791,9 +799,15 @@ function smoothPath(samples: SvgPoint[]): string {
       return (before + 2 * y + after) / 4;
     });
   }
+  return ys;
+}
 
-  let path = `M ${first.x.toFixed(2)} ${(ys[0] ?? first.y).toFixed(2)}`;
-  for (let index = 1; index < samples.length; index++) {
+function pathFromSamples(samples: SvgPoint[], ys: number[], fromIdx: number, toIdx: number): string {
+  if (fromIdx > toIdx || !samples[fromIdx]) return "";
+  const first = samples[fromIdx];
+  if (!first) return "";
+  let path = `M ${first.x.toFixed(2)} ${(ys[fromIdx] ?? first.y).toFixed(2)}`;
+  for (let index = fromIdx + 1; index <= toIdx; index++) {
     const point = samples[index];
     if (!point) continue;
     path += ` L ${point.x.toFixed(2)} ${(ys[index] ?? point.y).toFixed(2)}`;
@@ -807,12 +821,19 @@ function Chart({
   start,
   scale,
   onScaleChange,
+  forecastAt,
+  waitDays,
+  nextAt,
 }: {
   shots: Shot[];
   now: number;
   start: StartLevel | null;
   scale: Scale;
   onScaleChange: (s: Scale) => void;
+  /** Active titration look-ahead time (next shot or if-I-wait). */
+  forecastAt: number;
+  waitDays: number;
+  nextAt: number | null;
 }) {
   const W = 360;
   const H = 200;
@@ -820,25 +841,58 @@ function Chart({
 
   const model = useMemo(() => {
     const anchor = Math.min(shots[0]?.at ?? now, start?.at ?? now, now);
-    // Start exactly at the first known level/shot. Padding before it creates a
-    // false zero-level segment and makes the first date appear a day early.
-    const from = anchor;
-    const minTo = now + DRIFT_HOURS * 3_600_000;
+    // Horizon: at least 7d or the wait-days setting, and always cover next shot /
+    // active look-ahead when those land later. Half-day pad so the marker isn't
+    // glued to the right edge.
+    const horizonDays = Math.max(7, waitDays);
+    const minTo = Math.max(
+      now + horizonDays * DAY_MS,
+      forecastAt,
+      nextAt != null && nextAt > now ? nextAt : now,
+    ) + 12 * 3_600_000;
+
+    // Fixed scales: recent past window ending at now, plus forecast beyond.
+    // All: full history from first known level/shot. If look-ahead is overdue
+    // (before the window), pull `from` back so the ring still lands on-curve.
+    let from =
+      scale === "All" ? anchor : Math.max(anchor, now - SCALE_DAYS[scale] * DAY_MS);
+    if (forecastAt >= anchor && forecastAt < from) from = forecastAt;
     const to =
       scale === "All"
-        ? Math.max(minTo, from + 14 * 86_400_000)
-        : Math.max(minTo, from + SCALE_DAYS[scale] * 86_400_000);
+        ? Math.max(minTo, from + 14 * DAY_MS)
+        : Math.max(minTo, from + SCALE_DAYS[scale] * DAY_MS);
+
     const pts = buildCurve(shots, from, to, 2 * 3_600_000, start);
-    const maxMg = Math.max(1, ...pts.map((p) => p.mg));
+    // Exact samples at now + look-ahead so the split and ring sit on the curve.
+    for (const t of [now, forecastAt]) {
+      if (t >= from && t <= to && !pts.some((p) => p.t === t)) {
+        pts.push({ t, mg: onBoard(shots, t, start) });
+      }
+    }
+    pts.sort((a, b) => a.t - b.t);
+
+    const maxMg = Math.max(1, ...pts.map((p) => p.mg), onBoard(shots, forecastAt, start));
     const x = (t: number) => PAD.left + ((t - from) / (to - from)) * (W - PAD.left - PAD.right);
     const y = (mg: number) => PAD.top + (1 - mg / maxMg) * (H - PAD.top - PAD.bottom);
     return { pts, from, to, maxMg, x, y };
-  }, [shots, now, start, scale]);
+  }, [shots, now, start, scale, forecastAt, waitDays, nextAt]);
 
 
   const { pts, from, to, maxMg, x, y } = model;
-  const line = smoothPath(pts.map((point) => ({ x: x(point.t), y: y(point.mg), t: point.t })));
+  const samples = pts.map((point) => ({ x: x(point.t), y: y(point.mg), t: point.t }));
+  const ys = smoothYs(samples);
+  let nowIdx = samples.findIndex((p) => p.t >= now);
+  if (nowIdx < 0) nowIdx = samples.length - 1;
+  // Prefer the exact now sample when present.
+  const exactNow = samples.findIndex((p) => p.t === now);
+  if (exactNow >= 0) nowIdx = exactNow;
+  const pastLine = pathFromSamples(samples, ys, 0, nowIdx);
+  const futureLine = pathFromSamples(samples, ys, nowIdx, samples.length - 1);
   const nowY = y(onBoard(shots, now, start));
+  const forecastMg = onBoard(shots, forecastAt, start);
+  const forecastInView = forecastAt >= from && forecastAt <= to;
+  const forecastX = x(forecastAt);
+  const forecastY = y(forecastMg);
 
   // ~5 date ticks
   const ticks: number[] = [];
@@ -853,6 +907,8 @@ function Chart({
       const previous = visible[i - 1];
       return !previous || x(s.at) - x(previous.at) > 34;
     });
+
+  const hasCurve = shots.length > 0 || start;
 
   return (
     <section className="rounded-xl border border-border bg-card p-3">
@@ -895,15 +951,26 @@ function Chart({
           strokeWidth="1"
           strokeDasharray="3 3"
         />
-        {/* curve */}
-        {(shots.length > 0 || start) && (
+        {/* curve: solid past, softer forecast after now (same onBoard samples) */}
+        {hasCurve && pastLine && (
           <path
-            d={line}
+            d={pastLine}
             fill="none"
             className="stroke-primary"
             strokeWidth="2.5"
             strokeLinecap="round"
             strokeLinejoin="round"
+          />
+        )}
+        {hasCurve && futureLine && (
+          <path
+            d={futureLine}
+            fill="none"
+            stroke={FORECAST_STROKE}
+            strokeWidth="2.25"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            opacity="0.72"
           />
         )}
         {/* shot marks */}
@@ -953,7 +1020,21 @@ function Chart({
         })}
 
         {/* now dot */}
-        {(shots.length > 0 || start) && <circle cx={x(now)} cy={nowY} r="4" className="fill-foreground" />}
+        {hasCurve && <circle cx={x(now)} cy={nowY} r="4" className="fill-foreground" />}
+        {/* look-ahead ring — same timestamp/mg as the second card */}
+        {hasCurve && forecastInView && (
+          <g>
+            <circle
+              cx={forecastX}
+              cy={forecastY}
+              r="5.5"
+              fill="none"
+              stroke={FORECAST_STROKE}
+              strokeWidth="1.75"
+            />
+            <circle cx={forecastX} cy={forecastY} r="2" className="fill-foreground" opacity="0.55" />
+          </g>
+        )}
         {/* x labels */}
         {ticks.map((t, i) => (
           <text
@@ -968,9 +1049,9 @@ function Chart({
           </text>
         ))}
       </svg>
-      <div className="mt-1 flex items-center justify-between px-1 text-[11px] text-muted-foreground">
+      <div className="mt-1 flex items-center justify-between gap-2 px-1 text-[11px] text-muted-foreground">
         <span>marks = shots</span>
-        <span>dashed = now</span>
+        <span className="text-right">dashed = now · soft = forecast</span>
       </div>
     </section>
   );
