@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { AppTabs } from "@/components/app-tabs";
+import { Switch } from "@/components/ui/switch";
 import {
   DRIFT_HOURS,
   fmtMg,
@@ -116,6 +117,8 @@ function ShotCurve() {
 
   const [mounted, setMounted] = useState(false);
   const [scale, setScale] = useState<Scale>("1W");
+  /** false = on-board at next scheduled shot; true = if waiting scheduleDays from now */
+  const [ifIWait, setIfIWait] = useState(false);
   const [schedule, setSchedule] = useState<{ days: number; mg: number | null }>({
     days: DRIFT_HOURS / 24,
     mg: null,
@@ -328,14 +331,33 @@ function ShotCurve() {
   };
 
   const nowMg = onBoard(shots, now, start);
-  const driftMg = onBoard(shots, now + DRIFT_HOURS * 3_600_000, start);
 
   const lastShot = shots.length ? shots[shots.length - 1] : null;
   const intervalHours = schedule.days > 0 ? schedule.days * 24 : DRIFT_HOURS;
+  const waitDays = schedule.days > 0 ? schedule.days : DRIFT_HOURS / 24;
+  const waitAt = now + intervalHours * 3_600_000;
   const nextAt = lastShot ? lastShot.at + intervalHours * 3_600_000 : null;
   const nextMg = schedule.mg ?? lastShot?.mg ?? 6;
 
-
+  // Titration helper: same onBoard model, different look-ahead time (no planned shots).
+  const lookAt = ifIWait || nextAt === null ? waitAt : nextAt;
+  const lookMg = onBoard(shots, lookAt, start);
+  const lookLabel = ifIWait || nextAt === null ? "If I wait" : "At next shot";
+  const waitDaysLabel =
+    Number.isInteger(waitDays) ? `${waitDays}` : waitDays.toFixed(1);
+  const lookWhen = mounted
+    ? new Date(lookAt).toLocaleString(undefined, {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      })
+    : "…";
+  const lookHint =
+    ifIWait || nextAt === null
+      ? `if nothing else · ~${waitDaysLabel}d from now · ${lookWhen}`
+      : `if nothing else · ${lookWhen}`;
 
   return (
     <div className="mx-auto min-h-screen max-w-md px-4 pb-16 pt-6">
@@ -347,7 +369,7 @@ function ShotCurve() {
         </p>
       </header>
 
-      {/* Big numbers */}
+      {/* Big numbers — second card toggles next-shot vs wait-from-now for titration */}
       <section className="mb-6 grid grid-cols-2 gap-3">
         <div className="rounded-xl border border-border bg-card p-4">
           <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -359,14 +381,27 @@ function ShotCurve() {
           </div>
         </div>
         <div className="rounded-xl border border-border bg-card p-4">
-          <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            In 3.5 days
+          <div className="flex items-start justify-between gap-2">
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              {lookLabel}
+            </div>
+            <label className="flex shrink-0 items-center gap-1.5 pt-0.5">
+              <span className="sr-only">
+                Show on-board if waiting ~{waitDaysLabel} days from now instead of at next shot
+              </span>
+              <Switch
+                checked={ifIWait || nextAt === null}
+                onCheckedChange={setIfIWait}
+                disabled={nextAt === null}
+                aria-label="If I wait"
+              />
+            </label>
           </div>
           <div className="mt-1 text-3xl font-bold tabular-nums text-foreground">
-            {fmtMg(driftMg)}
+            {fmtMg(lookMg)}
             <span className="ml-1 text-sm font-medium text-muted-foreground">mg</span>
           </div>
-          <div className="mt-1 text-[11px] text-muted-foreground">if nothing else is taken</div>
+          <div className="mt-1 text-[11px] leading-snug text-muted-foreground">{lookHint}</div>
         </div>
       </section>
 
