@@ -899,10 +899,8 @@ function Chart({
     W - PAD.right - nowMgLabelW,
   );
   const nowMgLabelY = Math.min(Math.max(nowY - 16, 2), H - PAD.bottom - 14);
-  const forecastMg = onBoard(shots, forecastAt, start);
   const forecastInView = forecastAt >= from && forecastAt <= to;
   const forecastX = x(forecastAt);
-  const forecastY = y(forecastMg);
 
   // ~5 date ticks
   const ticks: number[] = [];
@@ -972,6 +970,19 @@ function Chart({
           strokeWidth="1"
           strokeDasharray="3 3"
         />
+        {/* look-ahead day — same timestamp as the second card (next shot / if-I-wait) */}
+        {hasCurve && forecastInView && (
+          <line
+            x1={forecastX}
+            x2={forecastX}
+            y1={PAD.top}
+            y2={H - PAD.bottom}
+            className="stroke-muted-foreground"
+            strokeWidth="1"
+            strokeDasharray="3 3"
+            opacity="0.75"
+          />
+        )}
         {/* curve: solid past, softer forecast after now (same onBoard samples) */}
         {hasCurve && pastLine && (
           <path
@@ -1066,20 +1077,6 @@ function Chart({
             </text>
           </g>
         )}
-        {/* look-ahead ring — same timestamp/mg as the second card */}
-        {hasCurve && forecastInView && (
-          <g>
-            <circle
-              cx={forecastX}
-              cy={forecastY}
-              r="5.5"
-              fill="none"
-              stroke={FORECAST_STROKE}
-              strokeWidth="1.75"
-            />
-            <circle cx={forecastX} cy={forecastY} r="2" className="fill-foreground" opacity="0.55" />
-          </g>
-        )}
         {/* x labels */}
         {ticks.map((t, i) => (
           <text
@@ -1096,7 +1093,7 @@ function Chart({
       </svg>
       <div className="mt-1 flex items-center justify-between gap-2 px-1 text-[11px] text-muted-foreground">
         <span>marks = shots</span>
-        <span className="text-right">dashed cross = now · soft = forecast</span>
+        <span className="text-right">dashed = now / look-ahead · soft = forecast</span>
       </div>
     </section>
   );
