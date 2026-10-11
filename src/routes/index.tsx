@@ -845,15 +845,16 @@ function Chart({
     // active look-ahead when those land later. Half-day pad so the marker isn't
     // glued to the right edge.
     const horizonDays = Math.max(7, waitDays);
+    // Pad past look-ahead so the day line isn't glued to the right edge.
     const minTo = Math.max(
       now + horizonDays * DAY_MS,
       forecastAt,
       nextAt != null && nextAt > now ? nextAt : now,
-    ) + 12 * 3_600_000;
+    ) + 1.5 * DAY_MS;
 
     // Fixed scales: recent past window ending at now, plus forecast beyond.
     // All: full history from first known level/shot. If look-ahead is overdue
-    // (before the window), pull `from` back so the ring still lands on-curve.
+    // (before the window), pull `from` back so the day line still lands in view.
     let from =
       scale === "All" ? anchor : Math.max(anchor, now - SCALE_DAYS[scale] * DAY_MS);
     if (forecastAt >= anchor && forecastAt < from) from = forecastAt;
@@ -980,7 +981,6 @@ function Chart({
             className="stroke-muted-foreground"
             strokeWidth="1"
             strokeDasharray="3 3"
-            opacity="0.75"
           />
         )}
         {/* curve: solid past, softer forecast after now (same onBoard samples) */}
