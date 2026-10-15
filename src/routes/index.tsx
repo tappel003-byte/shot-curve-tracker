@@ -16,9 +16,6 @@ import {
   type Shot,
   type StartLevel,
 } from "@/lib/shotcurve";
-import { planTargetPeak } from "@/lib/targetPeak";
-
-const TARGET_PEAK_KEY = "shotcurve.targetPeak.v1";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -56,6 +53,7 @@ function unitsFor(mg: number): string {
   const u = (mg * 25) / 6;
   return Number.isInteger(u) ? String(u) : u.toFixed(1);
 }
+
 
 const SIDES = ["Left", "Right"];
 const AREAS = ["Stomach", "Thigh", "Arm"];
@@ -128,10 +126,7 @@ function ShotCurve() {
     mg: null,
   });
 
-  /** Target peak helper — editable peak + planned dose (default 6 mg → ~15.6 peak). */
-  const [targetPeak, setTargetPeak] = useState("15.6");
-  const [peakDoseChoice, setPeakDoseChoice] = useState<"6" | "12" | "custom">("6");
-  const [peakCustomMg, setPeakCustomMg] = useState("");
+
 
   useEffect(() => {
     // one-time restore of the history lost when the home-screen shortcut was deleted
@@ -172,16 +167,6 @@ function ShotCurve() {
     } catch {
       /* ignore */
     }
-    try {
-      const tp = JSON.parse(localStorage.getItem(TARGET_PEAK_KEY) ?? "null");
-      if (tp && typeof tp.target === "string" && tp.target.trim()) setTargetPeak(tp.target);
-      if (tp?.doseChoice === "6" || tp?.doseChoice === "12" || tp?.doseChoice === "custom") {
-        setPeakDoseChoice(tp.doseChoice);
-      }
-      if (typeof tp?.customMg === "string") setPeakCustomMg(tp.customMg);
-    } catch {
-      /* ignore */
-    }
     const syncNow = () => setNow(Date.now());
     syncNow();
     setMounted(true);
@@ -202,7 +187,8 @@ function ShotCurve() {
   };
 
   const startMgNum = parseFloat(startMg);
-  const startValid = !!startDate && !!startTime && Number.isFinite(startMgNum) && startMgNum > 0;
+  const startValid =
+    !!startDate && !!startTime && Number.isFinite(startMgNum) && startMgNum > 0;
 
   const saveStartLevel = () => {
     if (!startValid) return;
@@ -321,7 +307,7 @@ function ShotCurve() {
       setImportOk(
         clean.length
           ? `Imported ${clean.length} shot${clean.length === 1 ? "" : "s"}.`
-          : "File read, but it had no shots in it.",
+          : "File read, but it had no shots in it."
       );
       const s = parsed?.start;
       if (s && typeof s.at === "number" && typeof s.mg === "number" && s.mg > 0) {
@@ -383,42 +369,6 @@ function ShotCurve() {
   const nudgeWait = (delta: number) => {
     setWaitDays((d) => Math.min(21, Math.max(0.5, Math.round((d + delta) * 2) / 2)));
   };
-
-  const peakDoseMg =
-    peakDoseChoice === "custom" ? parseFloat(peakCustomMg) : parseFloat(peakDoseChoice);
-  const targetPeakMg = parseFloat(targetPeak);
-  const peakPlan = useMemo(
-    () =>
-      mounted && Number.isFinite(targetPeakMg) && Number.isFinite(peakDoseMg) && peakDoseMg > 0
-        ? planTargetPeak(shots, start, now, targetPeakMg, peakDoseMg)
-        : null,
-    [mounted, shots, start, now, targetPeakMg, peakDoseMg],
-  );
-
-  useEffect(() => {
-    if (!mounted) return;
-    try {
-      localStorage.setItem(
-        TARGET_PEAK_KEY,
-        JSON.stringify({
-          target: targetPeak,
-          doseChoice: peakDoseChoice,
-          customMg: peakCustomMg,
-        }),
-      );
-    } catch {
-      /* ignore */
-    }
-  }, [mounted, targetPeak, peakDoseChoice, peakCustomMg]);
-
-  const fmtWhen = (ms: number) =>
-    new Date(ms).toLocaleString(undefined, {
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    });
 
   return (
     <div className="mx-auto min-h-screen max-w-md px-4 pb-16 pt-6">
@@ -494,7 +444,7 @@ function ShotCurve() {
 
       {/* Next shot pill — read-only reminder of the scheduled shot */}
       {mounted && nextAt !== null && (
-        <div className="mb-3 flex w-full items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-xs">
+        <div className="mb-6 flex w-full items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-xs">
           <span className="font-semibold uppercase tracking-wide text-muted-foreground">Next</span>
           <span className="font-medium text-foreground">
             {new Date(nextAt).toLocaleString(undefined, {
@@ -511,133 +461,6 @@ function ShotCurve() {
         </div>
       )}
 
-      {/* Target peak — when to shoot / what to wait down to (uses existing onBoard + 24h peak) */}
-      {mounted && (
-        <section className="mb-6 rounded-xl border border-border bg-card px-4 py-3">
-          <div className="flex items-baseline justify-between gap-2">
-            <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Target peak
-            </h2>
-            <span className="text-[11px] text-muted-foreground">estimate · not a lab value</span>
-          </div>
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {["15.6", "12", "10.6"].map((t) => (
-              <button
-                key={t}
-                type="button"
-                onClick={() => setTargetPeak(t)}
-                className={`rounded-md border px-2.5 py-1 text-[11px] font-semibold tabular-nums ${
-                  targetPeak === t
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-border bg-background text-foreground"
-                }`}
-              >
-                {t}
-              </button>
-            ))}
-          </div>
-          <div className="mt-2 grid grid-cols-[1fr_auto] gap-2">
-            <label className="block min-w-0">
-              <span className="mb-1 block text-[11px] text-muted-foreground">Peak (mg)</span>
-              <input
-                type="number"
-                inputMode="decimal"
-                min="0"
-                step="0.1"
-                value={targetPeak}
-                onChange={(e) => setTargetPeak(e.target.value)}
-                placeholder="15.6"
-                className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-sm tabular-nums text-foreground"
-              />
-            </label>
-            <div>
-              <span className="mb-1 block text-[11px] text-muted-foreground">Dose</span>
-              <div className="flex gap-1">
-                {(["6", "12"] as const).map((d) => (
-                  <button
-                    key={d}
-                    type="button"
-                    onClick={() => setPeakDoseChoice(d)}
-                    className={`rounded-md border px-2.5 py-1.5 text-xs font-semibold ${
-                      peakDoseChoice === d
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : "border-border bg-background text-foreground"
-                    }`}
-                  >
-                    {d}
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  onClick={() => setPeakDoseChoice("custom")}
-                  className={`rounded-md border px-2.5 py-1.5 text-xs font-semibold ${
-                    peakDoseChoice === "custom"
-                      ? "border-primary bg-primary text-primary-foreground"
-                      : "border-border bg-background text-foreground"
-                  }`}
-                >
-                  …
-                </button>
-              </div>
-            </div>
-          </div>
-          {peakDoseChoice === "custom" && (
-            <label className="mt-2 block">
-              <span className="mb-1 block text-[11px] text-muted-foreground">Custom dose (mg)</span>
-              <input
-                type="number"
-                inputMode="decimal"
-                min="0"
-                step="0.1"
-                value={peakCustomMg}
-                onChange={(e) => setPeakCustomMg(e.target.value)}
-                placeholder="e.g. 7.5"
-                className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-sm tabular-nums text-foreground"
-              />
-            </label>
-          )}
-          {peakPlan ? (
-            peakPlan.unreachable ? (
-              <p className="mt-2.5 text-xs leading-snug text-muted-foreground">
-                Target {fmtMg(peakPlan.targetMg)} mg is below a {fmtMg(peakPlan.doseMg)} mg dose
-                alone. Lower the dose or raise the target.
-              </p>
-            ) : (
-              <div className="mt-2.5 space-y-1 text-sm leading-snug text-foreground">
-                <p>
-                  {peakPlan.takeNow ? (
-                    <>
-                      <span className="font-semibold">Take now</span>
-                      <span className="text-muted-foreground">
-                        {" "}
-                        · peak ~{fmtMg(peakPlan.predictedPeakMg)} mg
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="font-semibold">Take ~{fmtWhen(peakPlan.shootAt)}</span>
-                      <span className="text-muted-foreground">
-                        {" "}
-                        · peak ~{fmtWhen(peakPlan.peakAt)}
-                      </span>
-                    </>
-                  )}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Wait until ~{fmtMg(peakPlan.waitUntilMg)} mg on board, then shoot{" "}
-                  {fmtMg(peakPlan.doseMg)} mg
-                  {!peakPlan.takeNow && (
-                    <> · residual at peak ~{fmtMg(peakPlan.residualAtPeak)} mg</>
-                  )}
-                  .
-                </p>
-              </div>
-            )
-          ) : (
-            <p className="mt-2.5 text-xs text-muted-foreground">Enter a target peak and dose.</p>
-          )}
-        </section>
-      )}
 
       {mounted ? (
         <Chart
@@ -649,12 +472,11 @@ function ShotCurve() {
           forecastAt={lookAt}
           waitDays={clampedWaitDays}
           nextAt={nextAt}
-          peakAt={peakPlan && !peakPlan.unreachable ? peakPlan.peakAt : null}
-          peakMg={peakPlan && !peakPlan.unreachable ? peakPlan.predictedPeakMg : null}
         />
       ) : (
         <div className="h-[220px] rounded-xl border border-border bg-card" />
       )}
+
 
       {/* Log form */}
       <section ref={formRef} className="mt-6 rounded-xl border border-border bg-card p-4">
@@ -683,18 +505,8 @@ function ShotCurve() {
         </div>
 
         <div className="mt-3 grid grid-cols-3 gap-2">
-          <DoseButton
-            active={doseChoice === "6"}
-            onClick={() => setDoseChoice("6")}
-            label="6 mg"
-            sub="25 units"
-          />
-          <DoseButton
-            active={doseChoice === "12"}
-            onClick={() => setDoseChoice("12")}
-            label="12 mg"
-            sub="50 units"
-          />
+          <DoseButton active={doseChoice === "6"} onClick={() => setDoseChoice("6")} label="6 mg" sub="25 units" />
+          <DoseButton active={doseChoice === "12"} onClick={() => setDoseChoice("12")} label="12 mg" sub="50 units" />
           <DoseButton
             active={doseChoice === "custom"}
             onClick={() => setDoseChoice("custom")}
@@ -845,8 +657,7 @@ function ShotCurve() {
           start ? (
             <div className="flex items-center justify-between gap-3">
               <div className="text-xs text-muted-foreground">
-                Starting level:{" "}
-                <span className="font-medium text-foreground">{fmtMg(start.mg)} mg</span> at{" "}
+                Starting level: <span className="font-medium text-foreground">{fmtMg(start.mg)} mg</span> at{" "}
                 {new Date(start.at).toLocaleString(undefined, {
                   weekday: "short",
                   month: "short",
@@ -883,8 +694,8 @@ function ShotCurve() {
               </button>
             </div>
             <p className="mb-3 text-xs text-muted-foreground">
-              If you were already on it before logging here, enter roughly how many mg were on board
-              and when. It decays like everything else.
+              If you were already on it before logging here, enter roughly how many mg were on board and
+              when. It decays like everything else.
             </p>
             <div className="grid grid-cols-3 gap-3">
               <label className="block">
@@ -956,11 +767,7 @@ function DoseButton({
       }`}
     >
       <div className="text-sm font-semibold">{label}</div>
-      <div
-        className={`text-[11px] ${active ? "text-primary-foreground/80" : "text-muted-foreground"}`}
-      >
-        {sub}
-      </div>
+      <div className={`text-[11px] ${active ? "text-primary-foreground/80" : "text-muted-foreground"}`}>{sub}</div>
     </button>
   );
 }
@@ -995,12 +802,7 @@ function smoothYs(samples: SvgPoint[]): number[] {
   return ys;
 }
 
-function pathFromSamples(
-  samples: SvgPoint[],
-  ys: number[],
-  fromIdx: number,
-  toIdx: number,
-): string {
+function pathFromSamples(samples: SvgPoint[], ys: number[], fromIdx: number, toIdx: number): string {
   if (fromIdx > toIdx || !samples[fromIdx]) return "";
   const first = samples[fromIdx];
   if (!first) return "";
@@ -1022,8 +824,6 @@ function Chart({
   forecastAt,
   waitDays,
   nextAt,
-  peakAt,
-  peakMg,
 }: {
   shots: Shot[];
   now: number;
@@ -1034,9 +834,6 @@ function Chart({
   forecastAt: number;
   waitDays: number;
   nextAt: number | null;
-  /** Predicted peak time after planned dose (light mark only — not a scrub). */
-  peakAt: number | null;
-  peakMg: number | null;
 }) {
   const W = 360;
   const H = 200;
@@ -1045,23 +842,21 @@ function Chart({
   const model = useMemo(() => {
     const anchor = Math.min(shots[0]?.at ?? now, start?.at ?? now, now);
     // Horizon: at least 7d or the wait-days setting, and always cover next shot /
-    // active look-ahead / target-peak when those land later. Half-day pad so the
-    // marker isn't glued to the right edge.
+    // active look-ahead when those land later. Half-day pad so the marker isn't
+    // glued to the right edge.
     const horizonDays = Math.max(7, waitDays);
     // Pad past look-ahead so the day line isn't glued to the right edge.
-    const minTo =
-      Math.max(
-        now + horizonDays * DAY_MS,
-        forecastAt,
-        nextAt != null && nextAt > now ? nextAt : now,
-        peakAt != null && peakAt > now ? peakAt : now,
-      ) +
-      1.5 * DAY_MS;
+    const minTo = Math.max(
+      now + horizonDays * DAY_MS,
+      forecastAt,
+      nextAt != null && nextAt > now ? nextAt : now,
+    ) + 1.5 * DAY_MS;
 
     // Fixed scales: recent past window ending at now, plus forecast beyond.
     // All: full history from first known level/shot. If look-ahead is overdue
     // (before the window), pull `from` back so the day line still lands in view.
-    let from = scale === "All" ? anchor : Math.max(anchor, now - SCALE_DAYS[scale] * DAY_MS);
+    let from =
+      scale === "All" ? anchor : Math.max(anchor, now - SCALE_DAYS[scale] * DAY_MS);
     if (forecastAt >= anchor && forecastAt < from) from = forecastAt;
     const to =
       scale === "All"
@@ -1077,16 +872,12 @@ function Chart({
     }
     pts.sort((a, b) => a.t - b.t);
 
-    const maxMg = Math.max(
-      1,
-      ...pts.map((p) => p.mg),
-      onBoard(shots, forecastAt, start),
-      peakMg ?? 0,
-    );
+    const maxMg = Math.max(1, ...pts.map((p) => p.mg), onBoard(shots, forecastAt, start));
     const x = (t: number) => PAD.left + ((t - from) / (to - from)) * (W - PAD.left - PAD.right);
     const y = (mg: number) => PAD.top + (1 - mg / maxMg) * (H - PAD.top - PAD.bottom);
     return { pts, from, to, maxMg, x, y };
-  }, [shots, now, start, scale, forecastAt, waitDays, nextAt, peakAt, peakMg]);
+  }, [shots, now, start, scale, forecastAt, waitDays, nextAt]);
+
 
   const { pts, from, to, maxMg, x, y } = model;
   const samples = pts.map((point) => ({ x: x(point.t), y: y(point.mg), t: point.t }));
@@ -1104,13 +895,13 @@ function Chart({
   const nowMgLabel = `${fmtMg(nowMg)} mg`;
   const nowMgLabelW = nowMgLabel.length * 5.2 + 8;
   // Sit just right of the vertical now line, above the level line — crosshair readout.
-  const nowMgLabelX = Math.min(Math.max(nowX + 6, PAD.left), W - PAD.right - nowMgLabelW);
+  const nowMgLabelX = Math.min(
+    Math.max(nowX + 6, PAD.left),
+    W - PAD.right - nowMgLabelW,
+  );
   const nowMgLabelY = Math.min(Math.max(nowY - 16, 2), H - PAD.bottom - 14);
   const forecastInView = forecastAt >= from && forecastAt <= to;
   const forecastX = x(forecastAt);
-  const peakInView = peakAt != null && peakMg != null && peakAt >= from && peakAt <= to;
-  const peakX = peakAt != null ? x(peakAt) : 0;
-  const peakY = peakMg != null ? y(peakMg) : 0;
 
   // ~5 date ticks
   const ticks: number[] = [];
@@ -1136,39 +927,24 @@ function Chart({
             key={s}
             onClick={() => onScaleChange(s)}
             className={`flex-1 rounded-full px-2 py-1 text-[11px] font-semibold transition-colors ${
-              s === scale ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+              s === scale
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted text-muted-foreground"
             }`}
           >
             {s}
           </button>
         ))}
       </div>
-      <svg
-        viewBox={`0 0 ${W} ${H}`}
-        className="w-full"
-        role="img"
-        aria-label="Estimated mg on board over time"
-      >
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="Estimated mg on board over time">
+
         {/* gridlines */}
         {[0.25, 0.5, 0.75, 1].map((f) => {
           const gy = y(maxMg * f);
           return (
             <g key={f}>
-              <line
-                x1={PAD.left}
-                x2={W - PAD.right}
-                y1={gy}
-                y2={gy}
-                className="stroke-border"
-                strokeWidth="1"
-              />
-              <text
-                x={PAD.left - 5}
-                y={gy + 3}
-                textAnchor="end"
-                className="fill-muted-foreground"
-                fontSize="9"
-              >
+              <line x1={PAD.left} x2={W - PAD.right} y1={gy} y2={gy} className="stroke-border" strokeWidth="1" />
+              <text x={PAD.left - 5} y={gy + 3} textAnchor="end" className="fill-muted-foreground" fontSize="9">
                 {fmtMg(maxMg * f)}
               </text>
             </g>
@@ -1206,21 +982,6 @@ function Chart({
             strokeWidth="1"
             strokeDasharray="3 3"
           />
-        )}
-        {/* target-peak mark — soft tick + solid dot at predicted peak (not a scrub cross) */}
-        {hasCurve && peakInView && (
-          <g opacity="0.85">
-            <line
-              x1={peakX}
-              x2={peakX}
-              y1={peakY}
-              y2={H - PAD.bottom}
-              stroke={FORECAST_STROKE}
-              strokeWidth="1"
-              strokeDasharray="2 4"
-            />
-            <circle cx={peakX} cy={peakY} r="3" fill={FORECAST_STROKE} />
-          </g>
         )}
         {/* curve: solid past, softer forecast after now (same onBoard samples) */}
         {hasCurve && pastLine && (
@@ -1332,10 +1093,7 @@ function Chart({
       </svg>
       <div className="mt-1 flex items-center justify-between gap-2 px-1 text-[11px] text-muted-foreground">
         <span>marks = shots</span>
-        <span className="text-right">
-          dashed = now / look-ahead · soft = forecast
-          {peakInView ? " · teal = target peak" : ""}
-        </span>
+        <span className="text-right">dashed = now / look-ahead · soft = forecast</span>
       </div>
     </section>
   );
