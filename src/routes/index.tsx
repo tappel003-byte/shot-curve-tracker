@@ -520,6 +520,22 @@ function ShotCurve() {
             </h2>
             <span className="text-[11px] text-muted-foreground">estimate · not a lab value</span>
           </div>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {["15.6", "12", "10.6"].map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setTargetPeak(t)}
+                className={`rounded-md border px-2.5 py-1 text-[11px] font-semibold tabular-nums ${
+                  targetPeak === t
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border bg-background text-foreground"
+                }`}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
           <div className="mt-2 grid grid-cols-[1fr_auto] gap-2">
             <label className="block min-w-0">
               <span className="mb-1 block text-[11px] text-muted-foreground">Peak (mg)</span>
