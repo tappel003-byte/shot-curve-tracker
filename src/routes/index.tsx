@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { X } from "lucide-react";
 import { AppTabs } from "@/components/app-tabs";
 import { Switch } from "@/components/ui/switch";
@@ -125,8 +125,8 @@ function ShotCurve() {
     days: DRIFT_HOURS / 24,
     mg: null,
   });
-
-
+  /** Chart scrub timestamp; null = follow live now */
+  const [scrubAt, setScrubAt] = useState<number | null>(null);
 
   useEffect(() => {
     // one-time restore of the history lost when the home-screen shortcut was deleted
@@ -334,8 +334,6 @@ function ShotCurve() {
     }
   };
 
-  const nowMg = onBoard(shots, now, start);
-
   const lastShot = shots.length ? shots[shots.length - 1] : null;
   const intervalHours = schedule.days > 0 ? schedule.days * 24 : DRIFT_HOURS;
   const clampedWaitDays = Math.min(21, Math.max(0.5, waitDays));
@@ -370,6 +368,20 @@ function ShotCurve() {
     setWaitDays((d) => Math.min(21, Math.max(0.5, Math.round((d + delta) * 2) / 2)));
   };
 
+  // Scrub crosshair drives the top mg card (display-only onBoard lookup).
+  const isScrubbing = scrubAt != null && Math.abs(scrubAt - now) > SCRUB_SNAP_MS;
+  const focusAt = isScrubbing ? scrubAt : now;
+  const focusMg = onBoard(shots, focusAt, start);
+  const focusWhen = mounted
+    ? new Date(focusAt).toLocaleString(undefined, {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      })
+    : "…";
+
   return (
     <div className="mx-auto min-h-screen max-w-md px-4 pb-16 pt-6">
       <AppTabs />
@@ -380,16 +392,30 @@ function ShotCurve() {
         </p>
       </header>
 
-      {/* Big numbers — second card: next-shot default, or wait N days from now */}
+      {/* Big numbers — left card follows scrub (or live now); right = titration */}
       <section className="mb-6 grid grid-cols-2 gap-3">
         <div className="rounded-xl border border-border bg-card p-4">
-          <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            On board now
+          <div className="flex items-start justify-between gap-2">
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              {isScrubbing ? "At this point" : "On board now"}
+            </div>
+            {isScrubbing && (
+              <button
+                type="button"
+                onClick={() => setScrubAt(null)}
+                className="shrink-0 rounded-md border border-border px-2 py-0.5 text-[11px] font-semibold text-foreground"
+              >
+                Now
+              </button>
+            )}
           </div>
           <div className="mt-1 text-3xl font-bold tabular-nums text-primary">
-            {fmtMg(nowMg)}
+            {fmtMg(focusMg)}
             <span className="ml-1 text-sm font-medium text-muted-foreground">mg</span>
           </div>
+          {isScrubbing && (
+            <div className="mt-1 text-[11px] leading-snug text-muted-foreground">{focusWhen}</div>
+          )}
         </div>
         <div className="rounded-xl border border-border bg-card p-4">
           <div className="flex items-start justify-between gap-2">
@@ -472,6 +498,8 @@ function ShotCurve() {
           forecastAt={lookAt}
           waitDays={clampedWaitDays}
           nextAt={nextAt}
+          scrubAt={scrubAt}
+          onScrubAt={setScrubAt}
         />
       ) : (
         <div className="h-[220px] rounded-xl border border-border bg-card" />
@@ -776,6 +804,8 @@ type Scale = "1W" | "1M" | "3M" | "All";
 const SCALES: Scale[] = ["1W", "1M", "3M", "All"];
 const SCALE_DAYS: Record<Exclude<Scale, "All">, number> = { "1W": 7, "1M": 30, "3M": 90 };
 const DAY_MS = 86_400_000;
+/** Snap scrub back to live now when within this window of now. */
+const SCRUB_SNAP_MS = 3 * 3_600_000;
 /** Soft teal-green nod to the home-screen icon — forecast stroke only. */
 const FORECAST_STROKE = "oklch(0.52 0.07 165)";
 
@@ -824,6 +854,8 @@ function Chart({
   forecastAt,
   waitDays,
   nextAt,
+  scrubAt,
+  onScrubAt,
 }: {
   shots: Shot[];
   now: number;
@@ -834,23 +866,29 @@ function Chart({
   forecastAt: number;
   waitDays: number;
   nextAt: number | null;
+  /** Scrub timestamp; null follows live now. */
+  scrubAt: number | null;
+  onScrubAt: (t: number | null) => void;
 }) {
   const W = 360;
   const H = 200;
   const PAD = { top: 22, right: 10, bottom: 22, left: 34 };
+  const svgRef = useRef<SVGSVGElement>(null);
+  const draggingRef = useRef(false);
 
   const model = useMemo(() => {
     const anchor = Math.min(shots[0]?.at ?? now, start?.at ?? now, now);
     // Horizon: at least 7d or the wait-days setting, and always cover next shot /
-    // active look-ahead when those land later. Half-day pad so the marker isn't
-    // glued to the right edge.
+    // active look-ahead when those land later.
     const horizonDays = Math.max(7, waitDays);
     // Pad past look-ahead so the day line isn't glued to the right edge.
-    const minTo = Math.max(
-      now + horizonDays * DAY_MS,
-      forecastAt,
-      nextAt != null && nextAt > now ? nextAt : now,
-    ) + 1.5 * DAY_MS;
+    const minTo =
+      Math.max(
+        now + horizonDays * DAY_MS,
+        forecastAt,
+        nextAt != null && nextAt > now ? nextAt : now,
+      ) +
+      1.5 * DAY_MS;
 
     // Fixed scales: recent past window ending at now, plus forecast beyond.
     // All: full history from first known level/shot. If look-ahead is overdue
@@ -864,7 +902,7 @@ function Chart({
         : Math.max(minTo, from + SCALE_DAYS[scale] * DAY_MS);
 
     const pts = buildCurve(shots, from, to, 2 * 3_600_000, start);
-    // Exact samples at now + look-ahead so the split and ring sit on the curve.
+    // Exact samples at now + look-ahead so the split and day line sit on the curve.
     for (const t of [now, forecastAt]) {
       if (t >= from && t <= to && !pts.some((p) => p.t === t)) {
         pts.push({ t, mg: onBoard(shots, t, start) });
@@ -889,17 +927,23 @@ function Chart({
   if (exactNow >= 0) nowIdx = exactNow;
   const pastLine = pathFromSamples(samples, ys, 0, nowIdx);
   const futureLine = pathFromSamples(samples, ys, nowIdx, samples.length - 1);
+
+  const scrubT = Math.min(Math.max(scrubAt ?? now, from), to);
+  const awayFromNow = Math.abs(scrubT - now) > SCRUB_SNAP_MS;
+  const scrubMg = onBoard(shots, scrubT, start);
+  const scrubX = x(scrubT);
+  const scrubY = y(scrubMg);
+  const scrubLabel = `${fmtMg(scrubMg)} mg`;
+  const scrubLabelW = scrubLabel.length * 5.2 + 8;
+  const scrubLabelX = Math.min(
+    Math.max(scrubX + 6, PAD.left),
+    W - PAD.right - scrubLabelW,
+  );
+  const scrubLabelY = Math.min(Math.max(scrubY - 16, 2), H - PAD.bottom - 14);
+
   const nowMg = onBoard(shots, now, start);
   const nowY = y(nowMg);
   const nowX = x(now);
-  const nowMgLabel = `${fmtMg(nowMg)} mg`;
-  const nowMgLabelW = nowMgLabel.length * 5.2 + 8;
-  // Sit just right of the vertical now line, above the level line — crosshair readout.
-  const nowMgLabelX = Math.min(
-    Math.max(nowX + 6, PAD.left),
-    W - PAD.right - nowMgLabelW,
-  );
-  const nowMgLabelY = Math.min(Math.max(nowY - 16, 2), H - PAD.bottom - 14);
   const forecastInView = forecastAt >= from && forecastAt <= to;
   const forecastX = x(forecastAt);
 
@@ -919,6 +963,46 @@ function Chart({
 
   const hasCurve = shots.length > 0 || start;
 
+  const clientToTime = (clientX: number): number => {
+    const svg = svgRef.current;
+    if (!svg) return now;
+    const rect = svg.getBoundingClientRect();
+    if (rect.width <= 0) return now;
+    const px = ((clientX - rect.left) / rect.width) * W;
+    const plotL = PAD.left;
+    const plotR = W - PAD.right;
+    const clamped = Math.min(Math.max(px, plotL), plotR);
+    return from + ((clamped - plotL) / (plotR - plotL)) * (to - from);
+  };
+
+  const applyScrub = (t: number) => {
+    // Snap to now when close in screen space (easy return to live).
+    if (Math.abs(x(t) - nowX) < 10) {
+      onScrubAt(null);
+      return;
+    }
+    onScrubAt(Math.min(Math.max(t, from), to));
+  };
+
+  const onPointerDown = (e: ReactPointerEvent<SVGSVGElement>) => {
+    if (!hasCurve) return;
+    draggingRef.current = true;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    applyScrub(clientToTime(e.clientX));
+  };
+
+  const onPointerMove = (e: ReactPointerEvent<SVGSVGElement>) => {
+    if (!draggingRef.current) return;
+    applyScrub(clientToTime(e.clientX));
+  };
+
+  const onPointerUp = (e: ReactPointerEvent<SVGSVGElement>) => {
+    draggingRef.current = false;
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+  };
+
   return (
     <section className="rounded-xl border border-border bg-card p-3">
       <div className="mb-2 flex gap-1">
@@ -936,8 +1020,18 @@ function Chart({
           </button>
         ))}
       </div>
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="Estimated mg on board over time">
-
+      <svg
+        ref={svgRef}
+        viewBox={`0 0 ${W} ${H}`}
+        className="w-full touch-none"
+        role="img"
+        aria-label="Estimated mg on board over time. Drag to scrub."
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+        onDoubleClick={() => onScrubAt(null)}
+      >
         {/* gridlines */}
         {[0.25, 0.5, 0.75, 1].map((f) => {
           const gy = y(maxMg * f);
@@ -950,27 +1044,21 @@ function Chart({
             </g>
           );
         })}
-        {/* now crosshair: horizontal = current on-board mg, vertical = now */}
-        {hasCurve && (
-          <line
-            x1={PAD.left}
-            x2={W - PAD.right}
-            y1={nowY}
-            y2={nowY}
-            className="stroke-muted-foreground"
-            strokeWidth="1"
-            strokeDasharray="3 3"
-          />
+        {/* Fixed now mark when scrubbing away — light vertical + tick so now stays findable */}
+        {hasCurve && awayFromNow && (
+          <g opacity="0.45">
+            <line
+              x1={nowX}
+              x2={nowX}
+              y1={PAD.top}
+              y2={H - PAD.bottom}
+              className="stroke-muted-foreground"
+              strokeWidth="1"
+              strokeDasharray="3 3"
+            />
+            <circle cx={nowX} cy={nowY} r="3" className="fill-muted-foreground" />
+          </g>
         )}
-        <line
-          x1={nowX}
-          x2={nowX}
-          y1={PAD.top}
-          y2={H - PAD.bottom}
-          className="stroke-muted-foreground"
-          strokeWidth="1"
-          strokeDasharray="3 3"
-        />
         {/* look-ahead day — same timestamp as the second card (next shot / if-I-wait) */}
         {hasCurve && forecastInView && (
           <line
@@ -1051,29 +1139,46 @@ function Chart({
           );
         })}
 
-        {/* now dot — intersection of time + level */}
-        {hasCurve && <circle cx={nowX} cy={nowY} r="4" className="fill-foreground" />}
-        {/* current mg label on the horizontal level line */}
+        {/* Scrub crosshair — same language as the old now cross; rides history or forecast */}
         {hasCurve && (
           <g>
+            <line
+              x1={PAD.left}
+              x2={W - PAD.right}
+              y1={scrubY}
+              y2={scrubY}
+              className="stroke-muted-foreground"
+              strokeWidth="1"
+              strokeDasharray="3 3"
+            />
+            <line
+              x1={scrubX}
+              x2={scrubX}
+              y1={PAD.top}
+              y2={H - PAD.bottom}
+              className="stroke-muted-foreground"
+              strokeWidth="1"
+              strokeDasharray="3 3"
+            />
+            <circle cx={scrubX} cy={scrubY} r="4" className="fill-foreground" />
             <rect
-              x={nowMgLabelX}
-              y={nowMgLabelY}
-              width={nowMgLabelW}
+              x={scrubLabelX}
+              y={scrubLabelY}
+              width={scrubLabelW}
               height="13"
               rx="6.5"
               className="fill-card stroke-muted-foreground"
               strokeWidth="1"
             />
             <text
-              x={nowMgLabelX + nowMgLabelW / 2}
-              y={nowMgLabelY + 9.5}
+              x={scrubLabelX + scrubLabelW / 2}
+              y={scrubLabelY + 9.5}
               textAnchor="middle"
               className="fill-foreground"
               fontSize="8.5"
               fontWeight="600"
             >
-              {nowMgLabel}
+              {scrubLabel}
             </text>
           </g>
         )}
@@ -1092,8 +1197,8 @@ function Chart({
         ))}
       </svg>
       <div className="mt-1 flex items-center justify-between gap-2 px-1 text-[11px] text-muted-foreground">
-        <span>marks = shots</span>
-        <span className="text-right">dashed = now / look-ahead · soft = forecast</span>
+        <span>drag = scrub</span>
+        <span className="text-right">dashed = scrub / look-ahead · soft = forecast</span>
       </div>
     </section>
   );
