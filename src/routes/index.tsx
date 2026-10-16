@@ -5,6 +5,7 @@ import { AppTabs } from "@/components/app-tabs";
 import { Switch } from "@/components/ui/switch";
 import {
   DRIFT_HOURS,
+  PEAK_HOURS,
   fmtMg,
   loadShots,
   loadStart,
@@ -237,6 +238,27 @@ function ShotCurve() {
   const mg = doseChoice === "custom" ? parseFloat(customMg) : parseFloat(doseChoice);
   const formValid = !!date && !!time && Number.isFinite(mg) && mg > 0;
   const lastSite = [...shots].reverse().find((s) => s.site)?.site;
+
+  // Display-only: peak of this draft at shotTime+24h ≈ residual + full new dose.
+  const draftAt = date && time ? new Date(`${date}T${time}`).getTime() : NaN;
+  const peakPreview = useMemo(() => {
+    if (!Number.isFinite(draftAt) || !Number.isFinite(mg) || !(mg > 0)) return null;
+    const peakAt = draftAt + PEAK_HOURS * 3_600_000;
+    const others = editingId ? shots.filter((s) => s.id !== editingId) : shots;
+    // At exactly +24h the new shot contributes its full mg (see contribution()).
+    const peakMg = onBoard(others, peakAt, start) + mg;
+    return { peakMg, peakAt };
+  }, [draftAt, mg, shots, start, editingId]);
+  const peakWhen =
+    peakPreview && mounted
+      ? new Date(peakPreview.peakAt).toLocaleString(undefined, {
+          weekday: "short",
+          month: "short",
+          day: "numeric",
+          hour: "numeric",
+          minute: "2-digit",
+        })
+      : null;
 
   const submit = () => {
     if (!formValid) return;
@@ -528,6 +550,12 @@ function ShotCurve() {
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
             />
           </label>
+        )}
+
+        {peakPreview && peakWhen && (
+          <p className="mt-3 text-xs leading-snug text-muted-foreground" aria-live="polite">
+            Peak ~{fmtMg(peakPreview.peakMg)} mg · {peakWhen}
+          </p>
         )}
 
         <div className="mt-4 space-y-2.5">
