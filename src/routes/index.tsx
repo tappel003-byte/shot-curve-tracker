@@ -837,7 +837,8 @@ function Chart({
 }) {
   const W = 360;
   const H = 200;
-  const PAD = { top: 22, right: 10, bottom: 22, left: 34 };
+  // Extra bottom pad so dose pills can sit under low shot marks without hitting dates.
+  const PAD = { top: 22, right: 10, bottom: 36, left: 34 };
 
   const model = useMemo(() => {
     const anchor = Math.min(shots[0]?.at ?? now, start?.at ?? now, now);
@@ -1005,14 +1006,16 @@ function Chart({
             opacity="0.72"
           />
         )}
-        {/* shot marks */}
+        {/* shot marks — dose pills sit under the mark (display-only; now-mg pill stays on the rail) */}
         {visible.map((s) => {
           const cx = x(s.at);
           const cy = y(onBoard(shots, s.at, start));
           const label = `${fmtMg(s.mg)} mg`;
           const bw = label.length * 5 + 8;
+          const labelH = 13;
           const bx = Math.min(Math.max(cx - bw / 2, PAD.left), W - PAD.right - bw);
-          const by = Math.max(cy - 26, 2);
+          // Always under the dot (not above). Stay above the date baseline (y ≈ H - 8).
+          const by = Math.min(cy + 6, H - 10 - labelH);
           return (
             <g key={s.id}>
               <line
@@ -1030,7 +1033,7 @@ function Chart({
                     x={bx}
                     y={by}
                     width={bw}
-                    height="13"
+                    height={labelH}
                     rx="6.5"
                     className="fill-card stroke-primary"
                     strokeWidth="1"
