@@ -837,7 +837,8 @@ function Chart({
 }) {
   const W = 360;
   const H = 200;
-  const PAD = { top: 22, right: 10, bottom: 22, left: 34 };
+  // Extra bottom pad so dose pills can sit under low shot marks without hitting dates.
+  const PAD = { top: 22, right: 10, bottom: 36, left: 34 };
 
   const model = useMemo(() => {
     const anchor = Math.min(shots[0]?.at ?? now, start?.at ?? now, now);
@@ -1013,8 +1014,8 @@ function Chart({
           const bw = label.length * 5 + 8;
           const labelH = 13;
           const bx = Math.min(Math.max(cx - bw / 2, PAD.left), W - PAD.right - bw);
-          // Under the dot so pills don't stack on the curve peak; clamp above the x-axis band.
-          const by = Math.min(cy + 6, H - PAD.bottom - labelH);
+          // Always under the dot (not above). Stay above the date baseline (y ≈ H - 8).
+          const by = Math.min(cy + 6, H - 10 - labelH);
           return (
             <g key={s.id}>
               <line
