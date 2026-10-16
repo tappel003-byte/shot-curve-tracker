@@ -1005,14 +1005,16 @@ function Chart({
             opacity="0.72"
           />
         )}
-        {/* shot marks */}
+        {/* shot marks — dose pills sit under the mark (display-only; now-mg pill stays on the rail) */}
         {visible.map((s) => {
           const cx = x(s.at);
           const cy = y(onBoard(shots, s.at, start));
           const label = `${fmtMg(s.mg)} mg`;
           const bw = label.length * 5 + 8;
+          const labelH = 13;
           const bx = Math.min(Math.max(cx - bw / 2, PAD.left), W - PAD.right - bw);
-          const by = Math.max(cy - 26, 2);
+          // Under the dot so pills don't stack on the curve peak; clamp above the x-axis band.
+          const by = Math.min(cy + 6, H - PAD.bottom - labelH);
           return (
             <g key={s.id}>
               <line
@@ -1030,7 +1032,7 @@ function Chart({
                     x={bx}
                     y={by}
                     width={bw}
-                    height="13"
+                    height={labelH}
                     rx="6.5"
                     className="fill-card stroke-primary"
                     strokeWidth="1"
