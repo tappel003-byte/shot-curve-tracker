@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { AppTabs } from "@/components/app-tabs";
+import { WeightTracker } from "@/components/weight-tracker";
 import { Switch } from "@/components/ui/switch";
 import {
   DRIFT_HOURS,
@@ -9,13 +10,17 @@ import {
   fmtMg,
   loadShots,
   loadStart,
+  loadWeights,
   newId,
   onBoard,
+  parseWeightEntries,
   saveShots,
   saveStart,
+  saveWeights,
   curve as buildCurve,
   type Shot,
   type StartLevel,
+  type WeightEntry,
 } from "@/lib/shotcurve";
 
 export const Route = createFileRoute("/")({
@@ -92,6 +97,7 @@ function SiteChips({
 function ShotCurve() {
   const [shots, setShots] = useState<Shot[]>([]);
   const [start, setStart] = useState<StartLevel | null>(null);
+  const [weights, setWeights] = useState<WeightEntry[]>([]);
   const [now, setNow] = useState(() => Date.now());
 
   // form state
@@ -145,6 +151,7 @@ function ShotCurve() {
       }
     }
     setShots(loadShots());
+    setWeights(loadWeights());
     const s = loadStart();
     setStart(s);
     setShowStartForm(false);
@@ -302,7 +309,7 @@ function ShotCurve() {
     } catch {
       /* ignore */
     }
-    const payload = { app: "shot-curve", version: 1, shots, recon, start };
+    const payload = { app: "shot-curve", version: 1, shots, recon, start, weight: weights };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -350,6 +357,14 @@ function ShotCurve() {
         typeof recon.wantedMg === "string"
       ) {
         localStorage.setItem("shotcurve.recon.v1", JSON.stringify(recon));
+      }
+      // Optional weight blob — absent on older exports; never fails the shot import.
+      if (parsed?.weight != null) {
+        const imported = parseWeightEntries(parsed.weight);
+        if (imported) {
+          setWeights(imported);
+          saveWeights(imported);
+        }
       }
     } catch {
       setImportError("That file doesn't look like a Shot Curve export.");
@@ -643,6 +658,8 @@ function ShotCurve() {
           </ul>
         )}
       </section>
+
+      {mounted && <WeightTracker entries={weights} onChange={setWeights} />}
 
       {/* Export / Import */}
       <section className="mt-8">
