@@ -59,6 +59,118 @@ export function fmtMg(mg: number): string {
 
 export const STORAGE_KEY = "shotcurve.shots.v1";
 export const START_KEY = "shotcurve.start.v1";
+export const WEIGHT_KEY = "shotcurve.weight.v1";
+export const WEIGHT_DISMISS_KEY = "shotcurve.weight.dismiss.v1";
+
+/** Optional weigh-in — date-local YYYY-MM-DD, lbs only. */
+export type WeightEntry = {
+  id: string;
+  date: string;
+  lbs: number;
+};
+
+export function toISODateLocal(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+/** Friday Tim usually weighs: today if Fri, yesterday if Sat, else next Fri. */
+export function defaultWeighDate(now = new Date()): string {
+  const d = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const day = d.getDay(); // 0 Sun … 5 Fri
+  if (day === 5) return toISODateLocal(d);
+  if (day === 6) {
+    d.setDate(d.getDate() - 1);
+    return toISODateLocal(d);
+  }
+  d.setDate(d.getDate() + ((5 - day + 7) % 7));
+  return toISODateLocal(d);
+}
+
+/** Friday of the Thu–Sat weigh window (local). */
+export function fridayOfWeighWindow(now = new Date()): string {
+  const d = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const day = d.getDay();
+  if (day === 6) d.setDate(d.getDate() - 1);
+  else if (day !== 5) d.setDate(d.getDate() + ((5 - day + 7) % 7));
+  return toISODateLocal(d);
+}
+
+/** Soft Fri nudge Thu–Sat when that Friday isn’t logged and wasn’t dismissed. */
+export function shouldPromptFridayWeigh(
+  entries: WeightEntry[],
+  now = new Date(),
+): boolean {
+  const day = now.getDay();
+  if (day < 4) return false; // Sun–Wed
+  const friday = fridayOfWeighWindow(now);
+  if (entries.some((e) => e.date === friday)) return false;
+  try {
+    if (localStorage.getItem(WEIGHT_DISMISS_KEY) === friday) return false;
+  } catch {
+    /* ignore */
+  }
+  return true;
+}
+
+export function dismissFridayWeighPrompt(now = new Date()) {
+  try {
+    localStorage.setItem(WEIGHT_DISMISS_KEY, fridayOfWeighWindow(now));
+  } catch {
+    /* ignore */
+  }
+}
+
+export function loadWeights(): WeightEntry[] {
+  try {
+    const raw = localStorage.getItem(WEIGHT_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter(
+        (e): e is WeightEntry =>
+          e &&
+          typeof e.id === "string" &&
+          typeof e.date === "string" &&
+          /^\d{4}-\d{2}-\d{2}$/.test(e.date) &&
+          typeof e.lbs === "number" &&
+          Number.isFinite(e.lbs) &&
+          e.lbs > 0 &&
+          e.lbs < 1000,
+      )
+      .sort((a, b) => a.date.localeCompare(b.date));
+  } catch {
+    return [];
+  }
+}
+
+export function saveWeights(entries: WeightEntry[]) {
+  localStorage.setItem(WEIGHT_KEY, JSON.stringify(entries));
+}
+
+export function parseWeightEntries(raw: unknown): WeightEntry[] | null {
+  if (!Array.isArray(raw)) return null;
+  const clean: WeightEntry[] = [];
+  for (const e of raw) {
+    if (
+      e &&
+      typeof e.date === "string" &&
+      /^\d{4}-\d{2}-\d{2}$/.test(e.date) &&
+      typeof e.lbs === "number" &&
+      Number.isFinite(e.lbs) &&
+      e.lbs > 0 &&
+      e.lbs < 1000
+    ) {
+      clean.push({
+        id: typeof e.id === "string" ? e.id : newId(),
+        date: e.date,
+        lbs: e.lbs,
+      });
+    }
+  }
+  return clean.sort((a, b) => a.date.localeCompare(b.date));
+}
 
 export function loadStart(): StartLevel | null {
   try {
