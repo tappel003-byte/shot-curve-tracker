@@ -612,6 +612,8 @@ function ShotCurve() {
         </div>
       </section>
 
+      {mounted && <WeightTracker entries={weights} onChange={setWeights} />}
+
       {/* Shot history */}
       <section className="mt-6">
         <h2 className="mb-2 text-sm font-semibold text-foreground">Logged shots</h2>
@@ -658,8 +660,6 @@ function ShotCurve() {
           </ul>
         )}
       </section>
-
-      {mounted && <WeightTracker entries={weights} onChange={setWeights} />}
 
       {/* Export / Import */}
       <section className="mt-8">
