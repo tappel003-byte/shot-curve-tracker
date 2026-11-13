@@ -61,6 +61,30 @@ export const STORAGE_KEY = "shotcurve.shots.v1";
 export const START_KEY = "shotcurve.start.v1";
 export const WEIGHT_KEY = "shotcurve.weight.v1";
 export const WEIGHT_DISMISS_KEY = "shotcurve.weight.dismiss.v1";
+/** UI-only: Weight section expanded. Default collapsed when missing. */
+export const WEIGHT_OPEN_KEY = "shotcurve.ui.weightOpen.v1";
+/** UI-only: Logged shots section expanded. Default collapsed when missing. */
+export const SHOTS_OPEN_KEY = "shotcurve.ui.shotsOpen.v1";
+
+/** Read a boolean UI pref. Missing/invalid → `fallback` (usually false = collapsed). */
+export function loadUiOpen(key: string, fallback = false): boolean {
+  try {
+    const raw = localStorage.getItem(key);
+    if (raw === "1" || raw === "true") return true;
+    if (raw === "0" || raw === "false") return false;
+  } catch {
+    /* ignore */
+  }
+  return fallback;
+}
+
+export function saveUiOpen(key: string, open: boolean) {
+  try {
+    localStorage.setItem(key, open ? "1" : "0");
+  } catch {
+    /* ignore */
+  }
+}
 
 /** Optional weigh-in — date-local YYYY-MM-DD, lbs only. */
 export type WeightEntry = {
