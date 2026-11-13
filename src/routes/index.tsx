@@ -1,21 +1,24 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { X } from "lucide-react";
+import { ChevronDown, X } from "lucide-react";
 import { AppTabs } from "@/components/app-tabs";
 import { WeightTracker } from "@/components/weight-tracker";
 import { Switch } from "@/components/ui/switch";
 import {
   DRIFT_HOURS,
   PEAK_HOURS,
+  SHOTS_OPEN_KEY,
   fmtMg,
   loadShots,
   loadStart,
+  loadUiOpen,
   loadWeights,
   newId,
   onBoard,
   parseWeightEntries,
   saveShots,
   saveStart,
+  saveUiOpen,
   saveWeights,
   curve as buildCurve,
   type Shot,
@@ -123,6 +126,7 @@ function ShotCurve() {
   const [showStartForm, setShowStartForm] = useState(false);
 
   const [mounted, setMounted] = useState(false);
+  const [shotsOpen, setShotsOpen] = useState(false);
   const [scale, setScale] = useState<Scale>("1W");
   /** false = on-board at next scheduled shot; true = delay preview from now */
   const [ifIWait, setIfIWait] = useState(false);
@@ -177,6 +181,7 @@ function ShotCurve() {
     }
     const syncNow = () => setNow(Date.now());
     syncNow();
+    setShotsOpen(loadUiOpen(SHOTS_OPEN_KEY, false));
     setMounted(true);
     const id = setInterval(syncNow, 15_000);
     window.addEventListener("focus", syncNow);
@@ -616,48 +621,92 @@ function ShotCurve() {
 
       {/* Shot history */}
       <section className="mt-6">
-        <h2 className="mb-2 text-sm font-semibold text-foreground">Logged shots</h2>
-        {shots.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">
-            No shots yet. Log your first one above.
-          </p>
-        ) : (
-          <ul className="space-y-2">
-            {[...shots].reverse().map((s) => (
-              <li
-                key={s.id}
-                className="flex items-center justify-between rounded-xl border border-border bg-card px-4 py-3"
-              >
-                <div>
-                  <div className="text-sm font-semibold text-foreground">{fmtMg(s.mg)} mg</div>
-                  <div className="text-xs text-muted-foreground">
-                    {new Date(s.at).toLocaleString(undefined, {
-                      weekday: "short",
-                      month: "short",
-                      day: "numeric",
-                      hour: "numeric",
-                      minute: "2-digit",
-                    })}
-                    {s.site ? ` · ${s.site}` : ""}
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => startEdit(s)}
-                    className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground"
+        <button
+          type="button"
+          onClick={() => {
+            const next = !shotsOpen;
+            setShotsOpen(next);
+            saveUiOpen(SHOTS_OPEN_KEY, next);
+          }}
+          aria-expanded={shotsOpen}
+          aria-controls="logged-shots-body"
+          className="mb-2 flex w-full items-center justify-between gap-3 text-left"
+        >
+          <div className="min-w-0">
+            <h2 className="text-sm font-semibold text-foreground">
+              Logged shots
+              {shots.length > 0 ? (
+                <span className="ml-1.5 font-medium text-muted-foreground">({shots.length})</span>
+              ) : null}
+            </h2>
+            {!shotsOpen && shots.length > 0 && (
+              <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                Latest {fmtMg(shots[shots.length - 1]!.mg)} mg ·{" "}
+                {new Date(shots[shots.length - 1]!.at).toLocaleString(undefined, {
+                  weekday: "short",
+                  month: "short",
+                  day: "numeric",
+                  hour: "numeric",
+                  minute: "2-digit",
+                })}
+              </p>
+            )}
+            {!shotsOpen && shots.length === 0 && (
+              <p className="mt-0.5 text-xs text-muted-foreground">No shots yet</p>
+            )}
+          </div>
+          <ChevronDown
+            className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 ${
+              shotsOpen ? "rotate-180" : ""
+            }`}
+            aria-hidden
+          />
+        </button>
+        {shotsOpen && (
+          <div id="logged-shots-body">
+            {shots.length === 0 ? (
+              <p className="rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">
+                No shots yet. Log your first one above.
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {[...shots].reverse().map((s) => (
+                  <li
+                    key={s.id}
+                    className="flex items-center justify-between rounded-xl border border-border bg-card px-4 py-3"
                   >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => remove(s.id)}
-                    className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-destructive"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
+                    <div>
+                      <div className="text-sm font-semibold text-foreground">{fmtMg(s.mg)} mg</div>
+                      <div className="text-xs text-muted-foreground">
+                        {new Date(s.at).toLocaleString(undefined, {
+                          weekday: "short",
+                          month: "short",
+                          day: "numeric",
+                          hour: "numeric",
+                          minute: "2-digit",
+                        })}
+                        {s.site ? ` · ${s.site}` : ""}
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => startEdit(s)}
+                        className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => remove(s.id)}
+                        className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-destructive"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         )}
       </section>
 
