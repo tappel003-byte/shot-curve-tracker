@@ -163,11 +163,7 @@ export function WeightTracker({
             Weight{" "}
             <span className="font-medium text-muted-foreground">(optional)</span>
           </h2>
-          {sectionOpen ? (
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              Friday weigh-ins · lbs · stays on this device
-            </p>
-          ) : latest ? (
+          {latest ? (
             <p className="mt-0.5 text-xs text-muted-foreground">
               {fmtLbs(latest.lbs)} lb · {fmtEntryDate(latest.date)}
               {entries.length > 1 ? ` · ${entries.length} entries` : ""}
@@ -177,20 +173,7 @@ export function WeightTracker({
           )}
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          {latest && (
-            <>
-              <WeightSparkline entries={entries} />
-              {sectionOpen && (
-                <div className="text-right">
-                  <div className="text-lg font-bold tabular-nums text-foreground">
-                    {fmtLbs(latest.lbs)}
-                    <span className="ml-0.5 text-xs font-medium text-muted-foreground">lb</span>
-                  </div>
-                  <div className="text-[11px] text-muted-foreground">{fmtEntryDate(latest.date)}</div>
-                </div>
-              )}
-            </>
-          )}
+          {sectionOpen && latest && <WeightSparkline entries={entries} />}
           <ChevronDown
             className={`mt-0.5 h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 ${
               sectionOpen ? "rotate-180" : ""

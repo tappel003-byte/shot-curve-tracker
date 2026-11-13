@@ -619,94 +619,64 @@ function ShotCurve() {
 
       {mounted && <WeightTracker entries={weights} onChange={setWeights} />}
 
-      {/* Shot history */}
+      {/* Shot history — last 2 always visible; older behind collapse */}
       <section className="mt-6">
-        <button
-          type="button"
-          onClick={() => {
-            const next = !shotsOpen;
-            setShotsOpen(next);
-            saveUiOpen(SHOTS_OPEN_KEY, next);
-          }}
-          aria-expanded={shotsOpen}
-          aria-controls="logged-shots-body"
-          className="mb-2 flex w-full items-center justify-between gap-3 text-left"
-        >
-          <div className="min-w-0">
-            <h2 className="text-sm font-semibold text-foreground">
-              Logged shots
-              {shots.length > 0 ? (
-                <span className="ml-1.5 font-medium text-muted-foreground">({shots.length})</span>
-              ) : null}
-            </h2>
-            {!shotsOpen && shots.length > 0 && (
-              <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                Latest {fmtMg(shots[shots.length - 1]!.mg)} mg ·{" "}
-                {new Date(shots[shots.length - 1]!.at).toLocaleString(undefined, {
-                  weekday: "short",
-                  month: "short",
-                  day: "numeric",
-                  hour: "numeric",
-                  minute: "2-digit",
-                })}
-              </p>
-            )}
-            {!shotsOpen && shots.length === 0 && (
-              <p className="mt-0.5 text-xs text-muted-foreground">No shots yet</p>
-            )}
-          </div>
-          <ChevronDown
-            className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 ${
-              shotsOpen ? "rotate-180" : ""
-            }`}
-            aria-hidden
-          />
-        </button>
-        {shotsOpen && (
-          <div id="logged-shots-body">
-            {shots.length === 0 ? (
-              <p className="rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">
-                No shots yet. Log your first one above.
-              </p>
-            ) : (
-              <ul className="space-y-2">
-                {[...shots].reverse().map((s) => (
-                  <li
-                    key={s.id}
-                    className="flex items-center justify-between rounded-xl border border-border bg-card px-4 py-3"
-                  >
-                    <div>
-                      <div className="text-sm font-semibold text-foreground">{fmtMg(s.mg)} mg</div>
-                      <div className="text-xs text-muted-foreground">
-                        {new Date(s.at).toLocaleString(undefined, {
-                          weekday: "short",
-                          month: "short",
-                          day: "numeric",
-                          hour: "numeric",
-                          minute: "2-digit",
-                        })}
-                        {s.site ? ` · ${s.site}` : ""}
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => startEdit(s)}
-                        className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => remove(s.id)}
-                        className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-destructive"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </li>
+        <h2 className="mb-2 text-sm font-semibold text-foreground">
+          Logged shots
+          {shots.length > 0 ? (
+            <span className="ml-1.5 font-medium text-muted-foreground">({shots.length})</span>
+          ) : null}
+        </h2>
+        {shots.length === 0 ? (
+          <p className="rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">
+            No shots yet. Log your first one above.
+          </p>
+        ) : (
+          <>
+            <ul className="space-y-2">
+              {[...shots]
+                .reverse()
+                .slice(0, 2)
+                .map((s) => (
+                  <ShotCard key={s.id} shot={s} onEdit={startEdit} onRemove={remove} />
                 ))}
-              </ul>
+            </ul>
+            {shots.length > 2 && (
+              <div className="mt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = !shotsOpen;
+                    setShotsOpen(next);
+                    saveUiOpen(SHOTS_OPEN_KEY, next);
+                  }}
+                  aria-expanded={shotsOpen}
+                  aria-controls="older-shots-body"
+                  className="flex w-full items-center justify-between gap-3 py-1.5 text-left"
+                >
+                  <span className="text-xs font-medium text-muted-foreground">
+                    Older shots ({shots.length - 2})
+                  </span>
+                  <ChevronDown
+                    className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 ${
+                      shotsOpen ? "rotate-180" : ""
+                    }`}
+                    aria-hidden
+                  />
+                </button>
+                {shotsOpen && (
+                  <ul id="older-shots-body" className="mt-1 space-y-2">
+                    {[...shots]
+                      .reverse()
+                      .slice(2)
+                      .map((s) => (
+                        <ShotCard key={s.id} shot={s} onEdit={startEdit} onRemove={remove} />
+                      ))}
+                  </ul>
+                )}
+              </div>
             )}
-          </div>
+          </>
         )}
       </section>
 
@@ -837,6 +807,50 @@ function ShotCurve() {
         )}
       </section>
     </div>
+  );
+}
+
+function ShotCard({
+  shot,
+  onEdit,
+  onRemove,
+}: {
+  shot: Shot;
+  onEdit: (s: Shot) => void;
+  onRemove: (id: string) => void;
+}) {
+  return (
+    <li className="flex items-center justify-between rounded-xl border border-border bg-card px-4 py-3">
+      <div>
+        <div className="text-sm font-semibold text-foreground">{fmtMg(shot.mg)} mg</div>
+        <div className="text-xs text-muted-foreground">
+          {new Date(shot.at).toLocaleString(undefined, {
+            weekday: "short",
+            month: "short",
+            day: "numeric",
+            hour: "numeric",
+            minute: "2-digit",
+          })}
+          {shot.site ? ` · ${shot.site}` : ""}
+        </div>
+      </div>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => onEdit(shot)}
+          className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground"
+        >
+          Edit
+        </button>
+        <button
+          type="button"
+          onClick={() => onRemove(shot.id)}
+          className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-destructive"
+        >
+          Delete
+        </button>
+      </div>
+    </li>
   );
 }
 
